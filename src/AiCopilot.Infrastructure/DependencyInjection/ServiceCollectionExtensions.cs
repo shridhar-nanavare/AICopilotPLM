@@ -2,6 +2,7 @@ using AiCopilot.Application.Abstractions;
 using AiCopilot.Infrastructure.Clients;
 using AiCopilot.Infrastructure.Data;
 using AiCopilot.Infrastructure.Options;
+using AiCopilot.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,8 @@ public static class ServiceCollectionExtensions
 
                 httpClient.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
             });
+
+        services.AddScoped<IEmbeddingService, EmbeddingService>();
 
         var connectionString = configuration.GetConnectionString("PlmDatabase")
             ?? "Host=localhost;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres";
