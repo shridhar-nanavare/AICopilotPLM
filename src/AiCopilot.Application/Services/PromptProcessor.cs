@@ -3,11 +3,14 @@ using AiCopilot.Application.Configurations;
 using AiCopilot.Shared.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace AiCopilot.Application.Services;
 
 internal sealed class PromptProcessor : IPromptProcessor
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly IChatService _chatService;
     private readonly CopilotOptions _options;
     private readonly ILogger<PromptProcessor> _logger;
@@ -45,6 +48,6 @@ internal sealed class PromptProcessor : IPromptProcessor
 
         var reply = await _chatService.ProcessQueryAsync(request.Prompt, cancellationToken);
 
-        return new PromptResponse(reply, DateTimeOffset.UtcNow);
+        return new PromptResponse(JsonSerializer.Serialize(reply, JsonOptions), DateTimeOffset.UtcNow);
     }
 }

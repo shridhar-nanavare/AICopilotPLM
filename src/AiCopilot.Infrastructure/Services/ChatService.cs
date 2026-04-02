@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Application.Configurations;
+using AiCopilot.Shared.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -30,7 +31,7 @@ internal sealed class ChatService : IChatService
         _logger = logger;
     }
 
-    public async Task<string> ProcessQueryAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<ChatResponse> ProcessQueryAsync(string query, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
@@ -41,10 +42,7 @@ internal sealed class ChatService : IChatService
 
         if (results.Count == 0)
         {
-            return SerializeSafeResponse(
-                answer: "I do not have enough grounded context to answer this question.",
-                grounded: false,
-                citations: []);
+            return CreateSafeResponse([]);
         }
 
         var context = results.Select((result, index) => new ContextItem(
@@ -113,7 +111,7 @@ internal sealed class ChatService : IChatService
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
-    private string ValidateOrFallback(string modelResponse, IReadOnlyList<ContextItem> context)
+    private ChatResponse ValidateOrFallback(string modelResponse, IReadOnlyList<ContextItem> context)
     {
         try
         {
@@ -153,45 +151,83 @@ internal sealed class ChatService : IChatService
 
             if (!grounded)
             {
-                return SerializeSafeResponse(
-                    answer: "I do not have enough grounded context to answer this question.",
-                    grounded: false,
-                    citations: []);
+                return CreateSafeResponse(context);
             }
 
-            var normalized = new ChatResponsePayload(
+            return new ChatResponse(
                 payload.Answer.Trim(),
-                true,
-                validatedCitations);
-
-            return JsonSerializer.Serialize(normalized, JsonOptions);
+                MapRecommendations(context, validatedCitations));
         }
         catch (JsonException exception)
         {
             _logger.LogWarning(exception, "Model returned invalid JSON. Falling back to safe response.");
-            return SerializeSafeResponse(
-                answer: "I do not have enough grounded context to answer this question.",
-                grounded: false,
-                citations: []);
+            return CreateSafeResponse(context);
         }
         catch (InvalidOperationException exception)
         {
             _logger.LogWarning(exception, "Model returned an invalid grounded response. Falling back to safe response.");
-            return SerializeSafeResponse(
-                answer: "I do not have enough grounded context to answer this question.",
-                grounded: false,
-                citations: []);
+            return CreateSafeResponse(context);
         }
     }
 
-    private static string SerializeSafeResponse(
-        string answer,
-        bool grounded,
+    private static ChatResponse CreateSafeResponse(IReadOnlyList<ContextItem> context)
+    {
+        return new ChatResponse(
+            "I do not have enough grounded context to answer this question.",
+            context
+                .Take(3)
+                .Select(x => new ChatRecommendation(
+                    x.PartId,
+                    x.PartNumber,
+                    x.PartName,
+                    x.DocumentId,
+                    x.FileName,
+                    x.StoragePath,
+                    x.Snippet,
+                    x.SimilarityScore,
+                    x.RankingScore))
+                .ToList());
+    }
+
+    private static IReadOnlyList<ChatRecommendation> MapRecommendations(
+        IReadOnlyList<ContextItem> context,
         IReadOnlyList<ChatCitationPayload> citations)
     {
-        return JsonSerializer.Serialize(
-            new ChatResponsePayload(answer, grounded, citations),
-            JsonOptions);
+        var contextById = context.ToDictionary(x => x.Id, StringComparer.Ordinal);
+
+        var recommendations = citations
+            .Select(citation => contextById[citation.ContextId])
+            .DistinctBy(item => item.DocumentId)
+            .Select(item => new ChatRecommendation(
+                item.PartId,
+                item.PartNumber,
+                item.PartName,
+                item.DocumentId,
+                item.FileName,
+                item.StoragePath,
+                item.Snippet,
+                item.SimilarityScore,
+                item.RankingScore))
+            .ToList();
+
+        if (recommendations.Count > 0)
+        {
+            return recommendations;
+        }
+
+        return context
+            .Take(3)
+            .Select(item => new ChatRecommendation(
+                item.PartId,
+                item.PartNumber,
+                item.PartName,
+                item.DocumentId,
+                item.FileName,
+                item.StoragePath,
+                item.Snippet,
+                item.SimilarityScore,
+                item.RankingScore))
+            .ToList();
     }
 
     private sealed record ContextItem(
