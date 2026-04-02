@@ -9,6 +9,7 @@ namespace AiCopilot.Infrastructure.Services;
 
 internal sealed class EmbeddingService : IEmbeddingService
 {
+    private const int DefaultSinglePartBatchSize = 1;
     private const string PartSummaryFileName = "__part_summary__.txt";
     private const string PartSummaryContentType = "text/plain";
 
@@ -23,14 +24,24 @@ internal sealed class EmbeddingService : IEmbeddingService
         _logger = logger;
     }
 
-    public Task ProcessPart(Part part, CancellationToken cancellationToken = default) =>
-        ProcessParts([part], 1, cancellationToken);
+    public Task ProcessPart(Part part, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(part);
+        return ProcessParts([part], DefaultSinglePartBatchSize, cancellationToken);
+    }
 
     public async Task ProcessParts(IReadOnlyList<Part> parts, int batchSize = 16, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(parts);
+
         if (parts.Count == 0)
         {
             return;
+        }
+
+        if (parts.Any(part => part is null))
+        {
+            throw new ArgumentException("Parts cannot contain null entries.", nameof(parts));
         }
 
         if (batchSize <= 0)
@@ -42,8 +53,15 @@ internal sealed class EmbeddingService : IEmbeddingService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var partBatch = parts.Skip(i).Take(batchSize).ToList();
-            var partTexts = partBatch.Select(ConvertPartToText).ToList();
+            var partBatch = parts
+                .Skip(i)
+                .Take(batchSize)
+                .Select(part => new PartEmbeddingPayload(part, ConvertPartToText(part), GetSummaryStoragePath(part.Id)))
+                .ToList();
+
+            var partTexts = partBatch
+                .Select(x => x.Text)
+                .ToList();
 
             var embeddings = await _openAiService.CreateEmbeddings(partTexts, cancellationToken);
 
@@ -52,16 +70,37 @@ internal sealed class EmbeddingService : IEmbeddingService
                 throw new InvalidOperationException($"Embedding count mismatch. Expected {partBatch.Count} but got {embeddings.Count}.");
             }
 
+            var partIds = partBatch
+                .Select(x => x.Part.Id)
+                .ToList();
+
+            var summaryStoragePaths = partBatch
+                .Select(x => x.StoragePath)
+                .ToList();
+
+            var existingDocuments = await _dbContext.Documents
+                .Include(x => x.Embeddings)
+                .Where(x => partIds.Contains(x.PartId) && summaryStoragePaths.Contains(x.StoragePath))
+                .ToListAsync(cancellationToken);
+
+            var documentsByPartId = existingDocuments
+                .GroupBy(x => x.PartId)
+                .ToDictionary(x => x.Key, x => x.OrderBy(document => document.CreatedUtc).ThenBy(document => document.Id).ToList());
+
             for (var index = 0; index < partBatch.Count; index++)
             {
-                var part = partBatch[index];
-                var text = partTexts[index];
+                var payload = partBatch[index];
+                var part = payload.Part;
+                var text = payload.Text;
+                var summaryStoragePath = payload.StoragePath;
 
-                var summaryStoragePath = GetSummaryStoragePath(part.Id);
+                documentsByPartId.TryGetValue(part.Id, out var documentsForPart);
+                var document = documentsForPart?.FirstOrDefault();
 
-                var document = await _dbContext.Documents.FirstOrDefaultAsync(
-                    x => x.PartId == part.Id && x.StoragePath == summaryStoragePath,
-                    cancellationToken);
+                if (documentsForPart is { Count: > 1 })
+                {
+                    _dbContext.Documents.RemoveRange(documentsForPart.Skip(1));
+                }
 
                 if (document is null)
                 {
@@ -75,6 +114,19 @@ internal sealed class EmbeddingService : IEmbeddingService
                     };
 
                     _dbContext.Documents.Add(document);
+                    documentsByPartId[part.Id] = [document];
+                }
+                else
+                {
+                    document.FileName = PartSummaryFileName;
+                    document.ContentType = PartSummaryContentType;
+                    document.StoragePath = summaryStoragePath;
+
+                    if (document.Embeddings.Count > 0)
+                    {
+                        _dbContext.Embeddings.RemoveRange(document.Embeddings);
+                        document.Embeddings.Clear();
+                    }
                 }
 
                 var embedding = new Embedding
@@ -101,4 +153,6 @@ internal sealed class EmbeddingService : IEmbeddingService
     }
 
     private static string GetSummaryStoragePath(Guid partId) => $"generated://parts/{partId}/summary";
+
+    private sealed record PartEmbeddingPayload(Part Part, string Text, string StoragePath);
 }

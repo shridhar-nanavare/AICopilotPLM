@@ -1,13 +1,14 @@
 using AiCopilot.Application.DependencyInjection;
 using AiCopilot.Infrastructure.DependencyInjection;
 using AiCopilot.Worker.Services;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
 
-builder.Host.UseSerilog((context, services, configuration) =>
+builder.Services.AddSerilog((services, configuration) =>
     configuration
-        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
