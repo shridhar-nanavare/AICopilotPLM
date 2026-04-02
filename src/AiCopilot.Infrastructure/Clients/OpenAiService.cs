@@ -34,9 +34,25 @@ internal sealed class OpenAiService : IOpenAiService
 
     public async Task<IReadOnlyList<float>> CreateEmbedding(string text, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        var embeddings = await CreateEmbeddings([text], cancellationToken);
+        return embeddings[0];
+    }
 
-        var request = new OpenAiEmbeddingRequest(_options.EmbeddingModel, text);
+    public async Task<IReadOnlyList<IReadOnlyList<float>>> CreateEmbeddings(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(texts);
+
+        if (texts.Count == 0)
+        {
+            throw new ArgumentException("At least one text input is required.", nameof(texts));
+        }
+
+        if (texts.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("Text inputs cannot contain null/whitespace values.", nameof(texts));
+        }
+
+        var request = new OpenAiEmbeddingRequest(_options.EmbeddingModel, texts);
         using var response = await _httpClient.PostAsJsonAsync(EmbeddingsPath, request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -49,14 +65,22 @@ internal sealed class OpenAiService : IOpenAiService
         var payload = await response.Content.ReadFromJsonAsync<OpenAiEmbeddingResponse>(cancellationToken)
             ?? throw new InvalidOperationException("OpenAI embedding response was empty.");
 
-        var embedding = payload.Data?.FirstOrDefault()?.Embedding;
+        var orderedEmbeddings = payload.Data?
+            .OrderBy(x => x.Index)
+            .Select(x => x.Embedding)
+            .ToList();
 
-        if (embedding is null || embedding.Count == 0)
+        if (orderedEmbeddings is null || orderedEmbeddings.Count == 0)
         {
             throw new InvalidOperationException("OpenAI embedding response did not include embedding vectors.");
         }
 
-        return embedding;
+        if (orderedEmbeddings.Count != texts.Count || orderedEmbeddings.Any(x => x is null || x.Count == 0))
+        {
+            throw new InvalidOperationException("OpenAI embedding response did not include a complete set of vectors.");
+        }
+
+        return orderedEmbeddings.Select(x => x!).ToList();
     }
 
     public async Task<string> Chat(string prompt, string systemPrompt, CancellationToken cancellationToken = default)
