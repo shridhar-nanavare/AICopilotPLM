@@ -8,16 +8,16 @@ namespace AiCopilot.Application.Services;
 
 internal sealed class PromptProcessor : IPromptProcessor
 {
-    private readonly IOpenAiService _openAiService;
+    private readonly IChatService _chatService;
     private readonly CopilotOptions _options;
     private readonly ILogger<PromptProcessor> _logger;
 
     public PromptProcessor(
-        IOpenAiService openAiService,
+        IChatService chatService,
         IOptions<CopilotOptions> options,
         ILogger<PromptProcessor> logger)
     {
-        _openAiService = openAiService;
+        _chatService = chatService;
         _options = options.Value;
         _logger = logger;
     }
@@ -43,10 +43,7 @@ internal sealed class PromptProcessor : IPromptProcessor
 
         _logger.LogInformation("Processing prompt for user {UserId}.", request.UserId);
 
-        var reply = await _openAiService.Chat(
-            request.Prompt,
-            _options.DefaultSystemPrompt,
-            cancellationToken);
+        var reply = await _chatService.ProcessQueryAsync(request.Prompt, cancellationToken);
 
         return new PromptResponse(reply, DateTimeOffset.UtcNow);
     }
