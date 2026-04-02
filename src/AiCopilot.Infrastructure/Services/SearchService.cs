@@ -1,14 +1,19 @@
+using System.Data;
+using System.Text;
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Pgvector;
-using Pgvector.EntityFrameworkCore;
 
 namespace AiCopilot.Infrastructure.Services;
 
 internal sealed class SearchService : ISearchService
 {
+    private const double UsageNormalizationCap = 100d;
+    private const double RecencyDecayWindowDays = 30d;
+
     private readonly PlmDbContext _dbContext;
     private readonly IOpenAiService _openAiService;
     private readonly ILogger<SearchService> _logger;
@@ -36,109 +41,161 @@ internal sealed class SearchService : ISearchService
         var queryEmbedding = await _openAiService.CreateEmbedding(query, cancellationToken);
         var queryVector = new Vector(queryEmbedding.ToArray());
 
-        var embeddingsQuery = _dbContext.Embeddings
-            .AsNoTracking()
-            .AsQueryable();
+        var sql = new StringBuilder(
+            """
+            SELECT
+                e."Id" AS embedding_id,
+                e."DocumentId" AS document_id,
+                d."PartId" AS part_id,
+                p."PartNumber" AS part_number,
+                p."Name" AS part_name,
+                d."FileName" AS file_name,
+                d."ContentType" AS content_type,
+                d."StoragePath" AS storage_path,
+                e."ChunkText" AS chunk_text,
+                GREATEST(0.0, LEAST(1.0, 1 - (e."Vector" <=> @query_vector))) AS similarity_score,
+                GREATEST(0.0, LEAST(1.0, e.feedback_score)) AS feedback_score,
+                e.usage_count AS usage_count,
+                e.last_used AS last_used,
+                (
+                    0.6 * GREATEST(0.0, LEAST(1.0, 1 - (e."Vector" <=> @query_vector))) +
+                    0.2 * GREATEST(0.0, LEAST(1.0, e.feedback_score)) +
+                    0.1 * GREATEST(
+                        0.0,
+                        LEAST(
+                            1.0,
+                            LN(1 + e.usage_count) / LN(1 + @usage_normalization_cap)
+                        )
+                    ) +
+                    0.1 * EXP(
+                        -GREATEST(
+                            EXTRACT(EPOCH FROM (NOW() - COALESCE(e.last_used, e."CreatedUtc"))),
+                            0
+                        ) / @recency_decay_window_seconds
+                    )
+                ) AS ranking_score
+            FROM embeddings e
+            INNER JOIN documents d ON d."Id" = e."DocumentId"
+            INNER JOIN parts p ON p."Id" = d."PartId"
+            WHERE 1 = 1
+            """);
 
-        embeddingsQuery = ApplyFilter(embeddingsQuery, filter);
+        var parameters = new List<NpgsqlParameter>
+        {
+            new("query_vector", queryVector),
+            new("usage_normalization_cap", UsageNormalizationCap),
+            new("recency_decay_window_seconds", RecencyDecayWindowDays * 24d * 60d * 60d)
+        };
 
-        var matches = await embeddingsQuery
-            .Select(embedding => new SearchMatch(
-                embedding.Id,
-                embedding.DocumentId,
-                embedding.Document.PartId,
-                embedding.Document.Part.PartNumber,
-                embedding.Document.Part.Name,
-                embedding.Document.FileName,
-                embedding.Document.ContentType,
-                embedding.Document.StoragePath,
-                embedding.ChunkText,
-                embedding.Vector.CosineDistance(queryVector)))
-            .OrderBy(match => match.Distance)
-            .Take(top)
-            .ToListAsync(cancellationToken);
+        AppendFilterSql(sql, parameters, filter);
+
+        sql.AppendLine("ORDER BY ranking_score DESC, similarity_score DESC");
+        sql.AppendLine("LIMIT @top");
+        parameters.Add(new NpgsqlParameter("top", top));
+
+        var results = new List<SearchResult>();
+        var connection = (NpgsqlConnection)_dbContext.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != ConnectionState.Open;
+
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = new NpgsqlCommand(sql.ToString(), connection);
+            command.Parameters.AddRange(parameters.ToArray());
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add(new SearchResult(
+                    reader.GetGuid(reader.GetOrdinal("embedding_id")),
+                    reader.GetGuid(reader.GetOrdinal("document_id")),
+                    reader.GetGuid(reader.GetOrdinal("part_id")),
+                    reader.GetString(reader.GetOrdinal("part_number")),
+                    reader.GetString(reader.GetOrdinal("part_name")),
+                    reader.GetString(reader.GetOrdinal("file_name")),
+                    reader.GetString(reader.GetOrdinal("content_type")),
+                    reader.GetString(reader.GetOrdinal("storage_path")),
+                    reader.GetString(reader.GetOrdinal("chunk_text")),
+                    reader.GetDouble(reader.GetOrdinal("similarity_score")),
+                    reader.GetDouble(reader.GetOrdinal("feedback_score")),
+                    reader.GetInt32(reader.GetOrdinal("usage_count")),
+                    reader.IsDBNull(reader.GetOrdinal("last_used"))
+                        ? null
+                        : reader.GetFieldValue<DateTime>(reader.GetOrdinal("last_used")),
+                    reader.GetDouble(reader.GetOrdinal("ranking_score"))));
+            }
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
 
         _logger.LogInformation(
-            "Search completed for query length {QueryLength} with {ResultCount} results.",
+            "Search completed for query length {QueryLength} with {ResultCount} ranked results.",
             query.Length,
-            matches.Count);
+            results.Count);
 
-        return matches
-            .Select(match => new SearchResult(
-                match.EmbeddingId,
-                match.DocumentId,
-                match.PartId,
-                match.PartNumber,
-                match.PartName,
-                match.FileName,
-                match.ContentType,
-                match.StoragePath,
-                match.ChunkText,
-                1d - match.Distance))
-            .ToList();
+        return results;
     }
 
-    private static IQueryable<Data.Entities.Embedding> ApplyFilter(
-        IQueryable<Data.Entities.Embedding> query,
+    private static void AppendFilterSql(
+        StringBuilder sql,
+        List<NpgsqlParameter> parameters,
         SearchFilter? filter)
     {
         if (filter is null)
         {
-            return query;
+            return;
         }
 
         if (filter.PartId.HasValue)
         {
-            query = query.Where(x => x.Document.PartId == filter.PartId.Value);
+            sql.AppendLine("AND d.\"PartId\" = @part_id");
+            parameters.Add(new NpgsqlParameter("part_id", filter.PartId.Value));
         }
 
         if (filter.PartIds is { Count: > 0 })
         {
-            query = query.Where(x => filter.PartIds.Contains(x.Document.PartId));
+            sql.AppendLine("AND d.\"PartId\" = ANY(@part_ids)");
+            parameters.Add(new NpgsqlParameter<Guid[]>("part_ids", filter.PartIds.ToArray()));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.PartNumber))
         {
-            var partNumber = filter.PartNumber.Trim();
-            query = query.Where(x => x.Document.Part.PartNumber == partNumber);
+            sql.AppendLine("AND p.\"PartNumber\" = @part_number");
+            parameters.Add(new NpgsqlParameter("part_number", filter.PartNumber.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.PartNameContains))
         {
-            var partName = filter.PartNameContains.Trim();
-            query = query.Where(x => EF.Functions.ILike(x.Document.Part.Name, $"%{partName}%"));
+            sql.AppendLine("AND p.\"Name\" ILIKE @part_name");
+            parameters.Add(new NpgsqlParameter("part_name", $"%{filter.PartNameContains.Trim()}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.FileName))
         {
-            var fileName = filter.FileName.Trim();
-            query = query.Where(x => x.Document.FileName == fileName);
+            sql.AppendLine("AND d.\"FileName\" = @file_name");
+            parameters.Add(new NpgsqlParameter("file_name", filter.FileName.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.ContentType))
         {
-            var contentType = filter.ContentType.Trim();
-            query = query.Where(x => x.Document.ContentType == contentType);
+            sql.AppendLine("AND d.\"ContentType\" = @content_type");
+            parameters.Add(new NpgsqlParameter("content_type", filter.ContentType.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.StoragePathPrefix))
         {
-            var storagePathPrefix = filter.StoragePathPrefix.Trim();
-            query = query.Where(x => x.Document.StoragePath.StartsWith(storagePathPrefix));
+            sql.AppendLine("AND d.\"StoragePath\" LIKE @storage_path_prefix");
+            parameters.Add(new NpgsqlParameter("storage_path_prefix", $"{filter.StoragePathPrefix.Trim()}%"));
         }
-
-        return query;
     }
-
-    private sealed record SearchMatch(
-        Guid EmbeddingId,
-        Guid DocumentId,
-        Guid PartId,
-        string PartNumber,
-        string PartName,
-        string FileName,
-        string ContentType,
-        string StoragePath,
-        string ChunkText,
-        double Distance);
 }

@@ -8,6 +8,9 @@ public class Embedding
     public Guid DocumentId { get; set; }
     public string ChunkText { get; set; } = string.Empty;
     public Vector Vector { get; set; } = null!;
+    public double FeedbackScore { get; set; }
+    public int UsageCount { get; set; }
+    public DateTime? LastUsed { get; set; }
     public DateTime CreatedUtc { get; set; }
 
     public Document Document { get; set; } = null!;

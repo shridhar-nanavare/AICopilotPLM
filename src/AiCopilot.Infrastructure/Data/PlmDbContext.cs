@@ -68,6 +68,16 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
             entity.HasKey(x => x.Id);
             entity.Property(x => x.ChunkText).HasColumnType("text").IsRequired();
             entity.Property(x => x.Vector).HasColumnType("vector(1536)").IsRequired();
+            entity.Property(x => x.FeedbackScore)
+                .HasColumnName("feedback_score")
+                .HasColumnType("double precision")
+                .HasDefaultValue(0d);
+            entity.Property(x => x.UsageCount)
+                .HasColumnName("usage_count")
+                .HasDefaultValue(0);
+            entity.Property(x => x.LastUsed)
+                .HasColumnName("last_used")
+                .HasColumnType("timestamp with time zone");
             entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
 
             entity.HasOne(x => x.Document)

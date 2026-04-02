@@ -10,4 +10,8 @@ public sealed record SearchResult(
     string ContentType,
     string StoragePath,
     string ChunkText,
-    double SimilarityScore);
+    double SimilarityScore,
+    double FeedbackScore,
+    int UsageCount,
+    DateTime? LastUsed,
+    double RankingScore);

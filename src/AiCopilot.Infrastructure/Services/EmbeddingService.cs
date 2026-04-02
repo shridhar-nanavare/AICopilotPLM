@@ -134,7 +134,10 @@ internal sealed class EmbeddingService : IEmbeddingService
                     Id = Guid.NewGuid(),
                     DocumentId = document.Id,
                     ChunkText = text,
-                    Vector = new Vector(embeddings[index].ToArray())
+                    Vector = new Vector(embeddings[index].ToArray()),
+                    FeedbackScore = 0d,
+                    UsageCount = 0,
+                    LastUsed = null
                 };
 
                 _dbContext.Embeddings.Add(embedding);

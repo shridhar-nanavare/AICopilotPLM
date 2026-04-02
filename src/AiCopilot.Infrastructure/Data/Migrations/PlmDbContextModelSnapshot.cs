@@ -107,6 +107,21 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uuid");
 
+                    b.Property<double>("FeedbackScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasColumnName("feedback_score")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<DateTime?>("LastUsed")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_used");
+
+                    b.Property<int>("UsageCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnName("usage_count")
+                        .HasDefaultValue(0);
+
                     b.Property<Vector>("Vector")
                         .IsRequired()
                         .HasColumnType("vector(1536)");
