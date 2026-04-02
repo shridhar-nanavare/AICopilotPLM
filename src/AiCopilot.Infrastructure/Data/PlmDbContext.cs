@@ -10,6 +10,8 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
     public DbSet<BomItem> Bom => Set<BomItem>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Embedding> Embeddings => Set<Embedding>();
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,6 +90,30 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
             entity.HasIndex(x => x.Vector)
                 .HasMethod("ivfflat")
                 .HasOperators("vector_cosine_ops");
+        });
+
+        modelBuilder.Entity<ChatSession>(entity =>
+        {
+            entity.ToTable("chat_sessions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+            entity.Property(x => x.UpdatedUtc).HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.ToTable("chat_messages");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Role).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Content).HasColumnType("text").IsRequired();
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.ChatSession)
+                .WithMany(x => x.Messages)
+                .HasForeignKey(x => x.ChatSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => new { x.ChatSessionId, x.CreatedUtc });
         });
     }
 }

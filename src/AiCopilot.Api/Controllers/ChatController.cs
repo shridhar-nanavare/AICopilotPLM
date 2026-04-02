@@ -27,7 +27,7 @@ public sealed class ChatController : ControllerBase
             return BadRequest(new { error = "Query is required." });
         }
 
-        var response = await _chatService.ProcessQueryAsync(request.Query, cancellationToken);
+        var response = await _chatService.ProcessQueryAsync(request, cancellationToken);
         return Ok(response);
     }
 }

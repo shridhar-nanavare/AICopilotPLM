@@ -1,7 +1,10 @@
 using System.Text.Json;
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Application.Configurations;
+using AiCopilot.Infrastructure.Data;
+using AiCopilot.Infrastructure.Data.Entities;
 using AiCopilot.Shared.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -16,33 +19,61 @@ internal sealed class ChatService : IChatService
 
     private readonly IOpenAiService _openAiService;
     private readonly ISearchService _searchService;
+    private readonly PlmDbContext _dbContext;
     private readonly CopilotOptions _options;
     private readonly ILogger<ChatService> _logger;
 
     public ChatService(
         IOpenAiService openAiService,
         ISearchService searchService,
+        PlmDbContext dbContext,
         IOptions<CopilotOptions> options,
         ILogger<ChatService> logger)
     {
         _openAiService = openAiService;
         _searchService = searchService;
+        _dbContext = dbContext;
         _options = options.Value;
         _logger = logger;
     }
 
-    public async Task<ChatResponse> ProcessQueryAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<ChatResponse> ProcessQueryAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Query);
+
+        var session = await GetOrCreateSessionAsync(request.SessionId, cancellationToken);
+
+        _dbContext.ChatMessages.Add(new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ChatSessionId = session.Id,
+            Role = "user",
+            Content = request.Query
+        });
+
+        session.UpdatedUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var recentHistory = await _dbContext.ChatMessages
+            .AsNoTracking()
+            .Where(x => x.ChatSessionId == session.Id)
+            .OrderByDescending(x => x.CreatedUtc)
+            .Take(5)
+            .OrderBy(x => x.CreatedUtc)
+            .Select(x => new HistoryItem(x.Role, x.Content, x.CreatedUtc))
+            .ToListAsync(cancellationToken);
 
         var results = await _searchService.SearchAsync(
-            query,
+            request.Query,
             _options.SearchTopResults,
             cancellationToken: cancellationToken);
 
         if (results.Count == 0)
         {
-            return CreateSafeResponse([]);
+            var safeResponse = CreateSafeResponse(session.Id, []);
+            await StoreAssistantResponseAsync(session, safeResponse, cancellationToken);
+            return safeResponse;
         }
 
         var context = results.Select((result, index) => new ContextItem(
@@ -57,14 +88,16 @@ internal sealed class ChatService : IChatService
             result.SimilarityScore,
             result.RankingScore)).ToList();
 
-        var userPrompt = BuildUserPrompt(query, context);
+        var userPrompt = BuildUserPrompt(request.Query, recentHistory, context);
 
         var modelResponse = await _openAiService.Chat(
             userPrompt,
             BuildSystemPrompt(),
             cancellationToken);
 
-        return ValidateOrFallback(modelResponse, context);
+        var response = ValidateOrFallback(session.Id, modelResponse, context);
+        await StoreAssistantResponseAsync(session, response, cancellationToken);
+        return response;
     }
 
     private string BuildSystemPrompt()
@@ -100,18 +133,19 @@ internal sealed class ChatService : IChatService
             """;
     }
 
-    private static string BuildUserPrompt(string query, IReadOnlyList<ContextItem> context)
+    private static string BuildUserPrompt(string query, IReadOnlyList<HistoryItem> history, IReadOnlyList<ContextItem> context)
     {
         var payload = new
         {
             query,
+            history,
             context
         };
 
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
-    private ChatResponse ValidateOrFallback(string modelResponse, IReadOnlyList<ContextItem> context)
+    private ChatResponse ValidateOrFallback(Guid sessionId, string modelResponse, IReadOnlyList<ContextItem> context)
     {
         try
         {
@@ -151,28 +185,30 @@ internal sealed class ChatService : IChatService
 
             if (!grounded)
             {
-                return CreateSafeResponse(context);
+                return CreateSafeResponse(sessionId, context);
             }
 
             return new ChatResponse(
+                sessionId,
                 payload.Answer.Trim(),
                 MapRecommendations(context, validatedCitations));
         }
         catch (JsonException exception)
         {
             _logger.LogWarning(exception, "Model returned invalid JSON. Falling back to safe response.");
-            return CreateSafeResponse(context);
+            return CreateSafeResponse(sessionId, context);
         }
         catch (InvalidOperationException exception)
         {
             _logger.LogWarning(exception, "Model returned an invalid grounded response. Falling back to safe response.");
-            return CreateSafeResponse(context);
+            return CreateSafeResponse(sessionId, context);
         }
     }
 
-    private static ChatResponse CreateSafeResponse(IReadOnlyList<ContextItem> context)
+    private static ChatResponse CreateSafeResponse(Guid sessionId, IReadOnlyList<ContextItem> context)
     {
         return new ChatResponse(
+            sessionId,
             "I do not have enough grounded context to answer this question.",
             context
                 .Take(3)
@@ -230,6 +266,43 @@ internal sealed class ChatService : IChatService
             .ToList();
     }
 
+    private async Task<ChatSession> GetOrCreateSessionAsync(Guid? sessionId, CancellationToken cancellationToken)
+    {
+        if (sessionId.HasValue)
+        {
+            var existingSession = await _dbContext.ChatSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionId.Value, cancellationToken);
+
+            if (existingSession is not null)
+            {
+                return existingSession;
+            }
+        }
+
+        var session = new ChatSession
+        {
+            Id = Guid.NewGuid()
+        };
+
+        _dbContext.ChatSessions.Add(session);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return session;
+    }
+
+    private async Task StoreAssistantResponseAsync(ChatSession session, ChatResponse response, CancellationToken cancellationToken)
+    {
+        _dbContext.ChatMessages.Add(new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ChatSessionId = session.Id,
+            Role = "assistant",
+            Content = response.Summary
+        });
+
+        session.UpdatedUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private sealed record ContextItem(
         string Id,
         Guid PartId,
@@ -241,6 +314,11 @@ internal sealed class ChatService : IChatService
         string Snippet,
         double SimilarityScore,
         double RankingScore);
+
+    private sealed record HistoryItem(
+        string Role,
+        string Content,
+        DateTime CreatedUtc);
 
     private sealed record ChatResponsePayload(
         string Answer,

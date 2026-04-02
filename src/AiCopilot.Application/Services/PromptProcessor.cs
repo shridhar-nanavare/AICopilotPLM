@@ -46,7 +46,9 @@ internal sealed class PromptProcessor : IPromptProcessor
 
         _logger.LogInformation("Processing prompt for user {UserId}.", request.UserId);
 
-        var reply = await _chatService.ProcessQueryAsync(request.Prompt, cancellationToken);
+        var reply = await _chatService.ProcessQueryAsync(
+            new ChatRequest(null, request.Prompt),
+            cancellationToken);
 
         return new PromptResponse(JsonSerializer.Serialize(reply, JsonOptions), DateTimeOffset.UtcNow);
     }

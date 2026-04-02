@@ -53,6 +53,57 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.ToTable("bom", (string)null);
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChatSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatSessionId", "CreatedUtc");
+
+                    b.ToTable("chat_messages", (string)null);
+                });
+
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.ChatSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("chat_sessions", (string)null);
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -196,6 +247,17 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Navigation("Part");
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("AiCopilot.Infrastructure.Data.Entities.ChatSession", "ChatSession")
+                        .WithMany("Messages")
+                        .HasForeignKey("ChatSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatSession");
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Embedding", b =>
                 {
                     b.HasOne("AiCopilot.Infrastructure.Data.Entities.Document", "Document")
@@ -210,6 +272,11 @@ namespace AiCopilot.Infrastructure.Data.Migrations
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Document", b =>
                 {
                     b.Navigation("Embeddings");
+                });
+
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.ChatSession", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Part", b =>
