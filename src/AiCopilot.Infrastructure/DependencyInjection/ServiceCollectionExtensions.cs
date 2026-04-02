@@ -13,9 +13,21 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<AiProviderOptions>(configuration.GetSection(AiProviderOptions.SectionName));
-        services.AddHttpClient();
-        services.AddSingleton<IAiProviderClient, AiProviderClient>();
+        services
+            .AddOptions<AiProviderOptions>()
+            .Bind(configuration.GetSection(AiProviderOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
+            .AddHttpClient<IOpenAiService, OpenAiService>((serviceProvider, httpClient) =>
+            {
+                var options = serviceProvider
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<AiProviderOptions>>()
+                    .Value;
+
+                httpClient.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+            });
 
         var connectionString = configuration.GetConnectionString("PlmDatabase")
             ?? "Host=localhost;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres";

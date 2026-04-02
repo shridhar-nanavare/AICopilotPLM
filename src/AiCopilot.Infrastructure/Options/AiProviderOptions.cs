@@ -1,10 +1,23 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AiCopilot.Infrastructure.Options;
 
 public sealed class AiProviderOptions
 {
     public const string SectionName = "AiProvider";
 
-    public string Endpoint { get; init; } = "https://example-ai-provider.local";
+    [Required]
+    public string Endpoint { get; init; } = "https://api.openai.com/";
 
-    public string ApiKey { get; init; } = "change-me";
+    [Required]
+    public string ApiKey { get; init; } = string.Empty;
+
+    [Required]
+    public string ChatModel { get; init; } = "gpt-4.1-mini";
+
+    [Required]
+    public string EmbeddingModel { get; init; } = "text-embedding-3-small";
+
+    [Range(1, 300)]
+    public int TimeoutSeconds { get; init; } = 60;
 }
