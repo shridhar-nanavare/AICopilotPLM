@@ -14,4 +14,5 @@ public class Embedding
     public DateTime CreatedUtc { get; set; }
 
     public Document Document { get; set; } = null!;
+    public ICollection<Feedback> FeedbackEntries { get; set; } = new List<Feedback>();
 }

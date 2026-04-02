@@ -12,6 +12,7 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
     public DbSet<Embedding> Embeddings => Set<Embedding>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<Feedback> Feedback => Set<Feedback>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -114,6 +115,30 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(x => new { x.ChatSessionId, x.CreatedUtc });
+        });
+
+        modelBuilder.Entity<Feedback>(entity =>
+        {
+            entity.ToTable("feedback");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Score)
+                .HasColumnType("double precision");
+            entity.Property(x => x.Comment)
+                .HasColumnType("text");
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.Embedding)
+                .WithMany(x => x.FeedbackEntries)
+                .HasForeignKey(x => x.EmbeddingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ChatSession)
+                .WithMany(x => x.FeedbackEntries)
+                .HasForeignKey(x => x.ChatSessionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(x => x.EmbeddingId);
+            entity.HasIndex(x => x.ChatSessionId);
         });
     }
 }

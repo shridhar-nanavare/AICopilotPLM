@@ -78,6 +78,7 @@ internal sealed class ChatService : IChatService
 
         var context = results.Select((result, index) => new ContextItem(
             Id: $"ctx-{index + 1}",
+            result.EmbeddingId,
             result.PartId,
             result.PartNumber,
             result.PartName,
@@ -213,6 +214,7 @@ internal sealed class ChatService : IChatService
             context
                 .Take(3)
                 .Select(x => new ChatRecommendation(
+                    x.EmbeddingId,
                     x.PartId,
                     x.PartNumber,
                     x.PartName,
@@ -235,6 +237,7 @@ internal sealed class ChatService : IChatService
             .Select(citation => contextById[citation.ContextId])
             .DistinctBy(item => item.DocumentId)
             .Select(item => new ChatRecommendation(
+                item.EmbeddingId,
                 item.PartId,
                 item.PartNumber,
                 item.PartName,
@@ -254,6 +257,7 @@ internal sealed class ChatService : IChatService
         return context
             .Take(3)
             .Select(item => new ChatRecommendation(
+                item.EmbeddingId,
                 item.PartId,
                 item.PartNumber,
                 item.PartName,
@@ -305,6 +309,7 @@ internal sealed class ChatService : IChatService
 
     private sealed record ContextItem(
         string Id,
+        Guid EmbeddingId,
         Guid PartId,
         string PartNumber,
         string PartName,

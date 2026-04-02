@@ -1,6 +1,7 @@
 namespace AiCopilot.Shared.Models;
 
 public sealed record ChatRecommendation(
+    Guid EmbeddingId,
     Guid PartId,
     string PartNumber,
     string PartName,

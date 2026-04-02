@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<IFeedbackService, FeedbackService>();
 
         var connectionString = configuration.GetConnectionString("PlmDatabase")
             ?? "Host=localhost;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres";

@@ -7,4 +7,5 @@ public class ChatSession
     public DateTime UpdatedUtc { get; set; }
 
     public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
+    public ICollection<Feedback> FeedbackEntries { get; set; } = new List<Feedback>();
 }

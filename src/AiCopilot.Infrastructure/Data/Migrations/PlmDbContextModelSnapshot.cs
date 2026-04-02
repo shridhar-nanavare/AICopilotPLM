@@ -188,6 +188,38 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.ToTable("embeddings", (string)null);
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Feedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ChatSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid>("EmbeddingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatSessionId");
+
+                    b.HasIndex("EmbeddingId");
+
+                    b.ToTable("feedback", (string)null);
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Part", b =>
                 {
                     b.Property<Guid>("Id")
@@ -269,6 +301,24 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Navigation("Document");
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Feedback", b =>
+                {
+                    b.HasOne("AiCopilot.Infrastructure.Data.Entities.ChatSession", "ChatSession")
+                        .WithMany("FeedbackEntries")
+                        .HasForeignKey("ChatSessionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AiCopilot.Infrastructure.Data.Entities.Embedding", "Embedding")
+                        .WithMany("FeedbackEntries")
+                        .HasForeignKey("EmbeddingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatSession");
+
+                    b.Navigation("Embedding");
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Document", b =>
                 {
                     b.Navigation("Embeddings");
@@ -276,7 +326,14 @@ namespace AiCopilot.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.ChatSession", b =>
                 {
+                    b.Navigation("FeedbackEntries");
+
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Embedding", b =>
+                {
+                    b.Navigation("FeedbackEntries");
                 });
 
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Part", b =>
