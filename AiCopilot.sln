@@ -1,0 +1,51 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Api", "src\AiCopilot.Api\AiCopilot.Api.csproj", "{A1B2C3D4-E5F6-4701-8101-010101010101}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Application", "src\AiCopilot.Application\AiCopilot.Application.csproj", "{A1B2C3D4-E5F6-4702-8102-020202020202}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Domain", "src\AiCopilot.Domain\AiCopilot.Domain.csproj", "{A1B2C3D4-E5F6-4703-8103-030303030303}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Infrastructure", "src\AiCopilot.Infrastructure\AiCopilot.Infrastructure.csproj", "{A1B2C3D4-E5F6-4704-8104-040404040404}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Worker", "src\AiCopilot.Worker\AiCopilot.Worker.csproj", "{A1B2C3D4-E5F6-4705-8105-050505050505}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AiCopilot.Shared", "src\AiCopilot.Shared\AiCopilot.Shared.csproj", "{A1B2C3D4-E5F6-4706-8106-060606060606}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-E5F6-4701-8101-010101010101}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4701-8101-010101010101}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4701-8101-010101010101}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4701-8101-010101010101}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4702-8102-020202020202}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4702-8102-020202020202}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4702-8102-020202020202}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4702-8102-020202020202}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4703-8103-030303030303}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4703-8103-030303030303}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4703-8103-030303030303}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4703-8103-030303030303}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4704-8104-040404040404}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4704-8104-040404040404}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4704-8104-040404040404}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4704-8104-040404040404}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4705-8105-050505050505}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4705-8105-050505050505}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4705-8105-050505050505}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4705-8105-050505050505}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-4706-8106-060606060606}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4706-8106-060606060606}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4706-8106-060606060606}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4706-8106-060606060606}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

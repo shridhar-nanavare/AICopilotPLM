@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AiCopilot.Domain</AssemblyName>
+    <RootNamespace>AiCopilot.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
