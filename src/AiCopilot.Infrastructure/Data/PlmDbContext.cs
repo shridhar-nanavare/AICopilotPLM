@@ -1,0 +1,83 @@
+using AiCopilot.Infrastructure.Data.Entities;
+using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
+
+namespace AiCopilot.Infrastructure.Data;
+
+public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(options)
+{
+    public DbSet<Part> Parts => Set<Part>();
+    public DbSet<BomItem> Bom => Set<BomItem>();
+    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Embedding> Embeddings => Set<Embedding>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.HasPostgresExtension("vector");
+
+        modelBuilder.Entity<Part>(entity =>
+        {
+            entity.ToTable("parts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PartNumber).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+            entity.HasIndex(x => x.PartNumber).IsUnique();
+        });
+
+        modelBuilder.Entity<BomItem>(entity =>
+        {
+            entity.ToTable("bom");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Quantity).HasColumnType("numeric(18,6)");
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.ParentPart)
+                .WithMany(x => x.ParentBomItems)
+                .HasForeignKey(x => x.ParentPartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.ChildPart)
+                .WithMany(x => x.ChildBomItems)
+                .HasForeignKey(x => x.ChildPartId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => new { x.ParentPartId, x.ChildPartId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Document>(entity =>
+        {
+            entity.ToTable("documents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.FileName).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.StoragePath).HasMaxLength(1024).IsRequired();
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.Part)
+                .WithMany(x => x.Documents)
+                .HasForeignKey(x => x.PartId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Embedding>(entity =>
+        {
+            entity.ToTable("embeddings");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ChunkText).HasColumnType("text").IsRequired();
+            entity.Property(x => x.Vector).HasColumnType("vector(1536)").IsRequired();
+            entity.Property(x => x.CreatedUtc).HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.Document)
+                .WithMany(x => x.Embeddings)
+                .HasForeignKey(x => x.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.Vector)
+                .HasMethod("ivfflat")
+                .HasOperators("vector_cosine_ops");
+        });
+    }
+}
