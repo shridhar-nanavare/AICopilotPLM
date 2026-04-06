@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlannerAgent, PlannerAgent>();
         services.AddScoped<IToolExecutor, ToolExecutor>();
         services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        services.AddScoped<IMultiAgentOrchestrator, MultiAgentOrchestrator>();
 
         var connectionString = configuration.GetConnectionString("PlmDatabase")
             ?? "Host=localhost;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres";
