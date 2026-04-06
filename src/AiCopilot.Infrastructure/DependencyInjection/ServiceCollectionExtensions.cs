@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         services.AddScoped<IPlmMockApiService, PlmMockApiService>();
+        services.AddScoped<IPlannerAgent, PlannerAgent>();
         services.AddScoped<IToolExecutor, ToolExecutor>();
         services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
