@@ -76,6 +76,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
@@ -110,6 +112,8 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'AiCopilot.Worker.dll' > /dev/null || exit 1"]
       interval: 15s
@@ -119,14 +123,54 @@ services:
     networks:
       - aicopilot-net
 
+  migrate:
+    build:
+      context: .
+      dockerfile: src/AiCopilot.Api/Dockerfile
+    image: aicopilot-migrate:latest
+    container_name: aicopilot-migrate
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PlmDatabase: Host=postgres;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres
+      PlmApi__BaseUrl: http://api:8080/
+      AiProvider__Endpoint: https://example-ai-provider.local
+      AiProvider__ApiKey: use-secrets-in-production
+      Tenant__DefaultTenantId: default
+      Jwt__Issuer: AiCopilot
+      Jwt__Audience: AiCopilotClients
+      Jwt__SigningKey: change-this-signing-key-in-production-12345
+      Jwt__ExpirationMinutes: 120
+      Auth__Users__0__Username: user
+      Auth__Users__0__Password: user123!
+      Auth__Users__0__Role: User
+      Auth__Users__0__TenantId: default
+      Auth__Users__1__Username: engineer
+      Auth__Users__1__Password: engineer123!
+      Auth__Users__1__Role: Engineer
+      Auth__Users__1__TenantId: default
+      Auth__Users__2__Username: admin
+      Auth__Users__2__Password: admin123!
+      Auth__Users__2__Role: Admin
+      Auth__Users__2__TenantId: default
+      Redis__ConnectionString: redis:6379
+      RUN_MIGRATIONS_ONLY: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["dotnet", "AiCopilot.Api.dll"]
+    restart: "no"
+    networks:
+      - aicopilot-net
+
   seed:
     image: postgres:16-alpine
     container_name: aicopilot-seed
     depends_on:
       postgres:
         condition: service_healthy
-      api:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       PGPASSWORD: postgres
     command:

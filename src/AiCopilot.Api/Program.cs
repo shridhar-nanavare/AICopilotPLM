@@ -24,7 +24,17 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<PlmDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    logger.LogInformation("Applying database migrations for the API service.");
     dbContext.Database.Migrate();
+    logger.LogInformation("Database migrations completed for the API service.");
+}
+
+if (builder.Configuration.GetValue<bool>("RUN_MIGRATIONS_ONLY"))
+{
+    Log.Information("RUN_MIGRATIONS_ONLY is enabled. Exiting after successful migration.");
+    return;
 }
 
 app.UseSerilogRequestLogging();
