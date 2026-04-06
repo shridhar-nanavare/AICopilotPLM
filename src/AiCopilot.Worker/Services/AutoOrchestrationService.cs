@@ -3,6 +3,7 @@ using AiCopilot.Application.Abstractions;
 using AiCopilot.Infrastructure.Data;
 using AiCopilot.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AiCopilot.Worker.Services;
 
@@ -20,6 +21,14 @@ internal sealed partial class AutoOrchestrationService
     public async Task HandleMonitoringIssuesAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<PlmDbContext>();
+
+        if (!await IsSchemaReadyAsync(dbContext, cancellationToken))
+        {
+            _logger.LogWarning("Skipping daily monitoring because the database schema is not ready yet.");
+            return;
+        }
+
         var digitalTwinService = scope.ServiceProvider.GetRequiredService<IDigitalTwinService>();
         var monitoringAgent = scope.ServiceProvider.GetRequiredService<IMonitoringAgent>();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAgentOrchestrator>();
@@ -55,6 +64,13 @@ internal sealed partial class AutoOrchestrationService
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PlmDbContext>();
+
+        if (!await IsSchemaReadyAsync(dbContext, cancellationToken))
+        {
+            _logger.LogWarning("Skipping event-based processing because the database schema is not ready yet.");
+            return lastCheckpointUtc;
+        }
+
         var digitalTwinService = scope.ServiceProvider.GetRequiredService<IDigitalTwinService>();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAgentOrchestrator>();
 
@@ -113,6 +129,34 @@ internal sealed partial class AutoOrchestrationService
         }.Max();
 
         return latestTimestamp;
+    }
+
+    private static async Task<bool> IsSchemaReadyAsync(PlmDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var connection = (NpgsqlConnection)dbContext.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
+
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = new NpgsqlCommand(
+                "SELECT to_regclass('public.parts') IS NOT NULL AND to_regclass('public.part_features') IS NOT NULL",
+                connection);
+
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result is true;
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 
     private static string? BuildIssueQuery(MonitoringIssue issue)
