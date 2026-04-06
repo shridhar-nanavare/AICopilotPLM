@@ -1,3 +1,3 @@
 namespace AiCopilot.Shared.Models;
 
-public sealed record MultiAgentRequest(string Query);
+public sealed record MultiAgentRequest(string Query, bool Approved = false);

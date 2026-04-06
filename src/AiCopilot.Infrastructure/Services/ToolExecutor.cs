@@ -13,6 +13,31 @@ internal sealed class ToolExecutor : IToolExecutor
         _plmMockApiClient = plmMockApiClient;
     }
 
+    public ToolExecutionPolicy GetExecutionPolicy(AgentIntent intent) =>
+        intent switch
+        {
+            AgentIntent.CreatePart => new ToolExecutionPolicy(
+                intent,
+                RiskLevel.High,
+                true,
+                "CREATE_PART modifies PLM data and requires explicit approval before execution."),
+            AgentIntent.AnalyzeBom => new ToolExecutionPolicy(
+                intent,
+                RiskLevel.Medium,
+                false,
+                "ANALYZE_BOM is allowed to run automatically, but execution should be logged for review."),
+            AgentIntent.FindDuplicate => new ToolExecutionPolicy(
+                intent,
+                RiskLevel.Low,
+                false,
+                "FIND_DUPLICATE is read-only and can run automatically."),
+            _ => new ToolExecutionPolicy(
+                intent,
+                RiskLevel.Low,
+                false,
+                "Unknown tools do not have a special execution policy.")
+        };
+
     public Task<CreatePartResult> CreatePartAsync(CreatePartRequest request, CancellationToken cancellationToken = default) =>
         _plmMockApiClient.CreatePartAsync(request, cancellationToken);
 

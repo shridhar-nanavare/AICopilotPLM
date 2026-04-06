@@ -31,7 +31,8 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
 
         var plan = await _plannerAgent.CreatePlanAsync(new PlannerRequest(request.Query), cancellationToken);
         var intent = DetectIntent(request.Query);
-        var context = new ExecutionContext(request.Query, intent);
+        var policy = _toolExecutor.GetExecutionPolicy(intent);
+        var context = new ExecutionContext(request.Query, intent, request.Approved, policy);
         var stepResults = new List<MultiAgentStepResult>();
 
         foreach (var step in plan.Steps.OrderBy(x => x.Order))
@@ -54,7 +55,9 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                     false,
                     stepResults,
                     stepResult.Summary,
-                    context.FinalResult);
+                    context.FinalResult,
+                    policy.RiskLevel,
+                    context.ApprovalRequired);
             }
         }
 
@@ -64,7 +67,9 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
             true,
             stepResults,
             context.FinalResult?.Summary ?? "Plan completed successfully.",
-            context.FinalResult);
+            context.FinalResult,
+            policy.RiskLevel,
+            context.ApprovalRequired);
     }
 
     private async Task<MultiAgentStepResult> ExecuteSearchStepAsync(
@@ -175,6 +180,19 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
             {
                 case AgentIntent.CreatePart:
                 {
+                    if (context.Policy.RequiresApproval && !context.Approved)
+                    {
+                        context.ApprovalRequired = true;
+                        context.FinalResult = new AgentResponse(
+                            AgentIntent.CreatePart,
+                            false,
+                            "ACTION requires approval before CREATE_PART can run.",
+                            RiskLevel: context.Policy.RiskLevel,
+                            ApprovalRequired: true);
+
+                        return CreateFailedStep(step, context.FinalResult.Summary);
+                    }
+
                     if (!context.IsReadyForAction || string.IsNullOrWhiteSpace(context.PartNumber) || string.IsNullOrWhiteSpace(context.PartName))
                     {
                         return CreateFailedStep(step, context.AnalysisSummary ?? "ACTION blocked because create-part analysis did not clear execution.");
@@ -188,7 +206,8 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                         AgentIntent.CreatePart,
                         true,
                         $"Created part {createdPart.PartNumber} ({createdPart.Name}).",
-                        CreatedPart: createdPart);
+                        CreatedPart: createdPart,
+                        RiskLevel: context.Policy.RiskLevel);
 
                     return CreateSuccessfulStep(step, context.FinalResult.Summary, createdPart);
                 }
@@ -202,13 +221,19 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                         AgentIntent.FindDuplicate,
                         true,
                         summary,
-                        DuplicateResult: duplicateResult);
+                        DuplicateResult: duplicateResult,
+                        RiskLevel: context.Policy.RiskLevel);
 
                     return CreateSuccessfulStep(step, summary, duplicateResult);
                 }
 
                 case AgentIntent.AnalyzeBom:
                 {
+                    if (context.Policy.RiskLevel == RiskLevel.Medium)
+                    {
+                        _logger.LogInformation("Executing MEDIUM risk ACTION step for ANALYZE_BOM query: {Query}", context.Query);
+                    }
+
                     if (context.BomResult is null)
                     {
                         return CreateFailedStep(step, "ACTION could not complete because no BOM analysis data was available.");
@@ -220,7 +245,8 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                         AgentIntent.AnalyzeBom,
                         true,
                         summary,
-                        BomAnalysis: context.BomResult);
+                        BomAnalysis: context.BomResult,
+                        RiskLevel: context.Policy.RiskLevel);
 
                     return CreateSuccessfulStep(step, summary, context.BomResult);
                 }
@@ -420,8 +446,19 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
             Intent = intent;
         }
 
+        public ExecutionContext(string query, AgentIntent intent, bool approved, ToolExecutionPolicy policy)
+        {
+            Query = query;
+            Intent = intent;
+            Approved = approved;
+            Policy = policy;
+        }
+
         public string Query { get; }
         public AgentIntent Intent { get; }
+        public bool Approved { get; }
+        public ToolExecutionPolicy Policy { get; } = new(AgentIntent.Unknown, RiskLevel.Low, false, "No policy available.");
+        public bool ApprovalRequired { get; set; }
         public string? PartNumber { get; set; }
         public string? PartName { get; set; }
         public FindDuplicateResult? SearchResult { get; set; }

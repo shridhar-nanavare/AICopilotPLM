@@ -6,4 +6,6 @@ public sealed record AgentResponse(
     string Summary,
     CreatePartResult? CreatedPart = null,
     FindDuplicateResult? DuplicateResult = null,
-    BomAnalysisResult? BomAnalysis = null);
+    BomAnalysisResult? BomAnalysis = null,
+    RiskLevel RiskLevel = RiskLevel.Low,
+    bool ApprovalRequired = false);

@@ -6,4 +6,6 @@ public sealed record MultiAgentResponse(
     bool Succeeded,
     IReadOnlyList<MultiAgentStepResult> Steps,
     string FinalSummary,
-    AgentResponse? FinalResult = null);
+    AgentResponse? FinalResult = null,
+    RiskLevel RiskLevel = RiskLevel.Low,
+    bool ApprovalRequired = false);
