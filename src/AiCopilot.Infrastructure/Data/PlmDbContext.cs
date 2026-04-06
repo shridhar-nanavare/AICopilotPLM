@@ -218,7 +218,14 @@ public class PlmDbContext : DbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.TenantId).HasColumnName("tenant_id").HasMaxLength(128).IsRequired();
             entity.Property(x => x.ChunkText).HasColumnType("text").IsRequired();
-            entity.Property(x => x.Vector).HasColumnType("vector(1536)").IsRequired();
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            {
+                entity.Ignore(x => x.Vector);
+            }
+            else
+            {
+                entity.Property(x => x.Vector).HasColumnType("vector(1536)").IsRequired();
+            }
             entity.Property(x => x.FeedbackScore)
                 .HasColumnName("feedback_score")
                 .HasColumnType("double precision")
