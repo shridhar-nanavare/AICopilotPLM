@@ -10,6 +10,7 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
     public DbSet<BomItem> Bom => Set<BomItem>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Embedding> Embeddings => Set<Embedding>();
+    public DbSet<PartFeature> PartFeatures => Set<PartFeature>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
@@ -63,6 +64,37 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
                 .WithMany(x => x.Documents)
                 .HasForeignKey(x => x.PartId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PartFeature>(entity =>
+        {
+            entity.ToTable("part_features");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.UsageCount)
+                .HasColumnName("usage_count")
+                .HasDefaultValue(0);
+            entity.Property(x => x.FailureRate)
+                .HasColumnName("failure_rate")
+                .HasColumnType("double precision")
+                .HasDefaultValue(0d);
+            entity.Property(x => x.Lifecycle)
+                .HasColumnName("lifecycle")
+                .HasMaxLength(64)
+                .IsRequired();
+            entity.Property(x => x.Cost)
+                .HasColumnName("cost")
+                .HasColumnType("numeric(18,2)");
+            entity.Property(x => x.UpdatedUtc)
+                .HasColumnName("updated_utc")
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.Part)
+                .WithOne(x => x.Features)
+                .HasForeignKey<PartFeature>(x => x.PartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.PartId)
+                .IsUnique();
         });
 
         modelBuilder.Entity<Embedding>(entity =>

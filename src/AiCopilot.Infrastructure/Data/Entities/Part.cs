@@ -10,4 +10,5 @@ public class Part
     public ICollection<BomItem> ParentBomItems { get; set; } = new List<BomItem>();
     public ICollection<BomItem> ChildBomItems { get; set; } = new List<BomItem>();
     public ICollection<Document> Documents { get; set; } = new List<Document>();
+    public PartFeature? Features { get; set; }
 }

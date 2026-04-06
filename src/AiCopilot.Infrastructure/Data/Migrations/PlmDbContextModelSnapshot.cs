@@ -249,6 +249,51 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.ToTable("parts", (string)null);
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.PartFeature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cost");
+
+                    b.Property<double>("FailureRate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasColumnName("failure_rate")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<string>("Lifecycle")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("lifecycle");
+
+                    b.Property<Guid>("PartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int>("UsageCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("usage_count")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartId")
+                        .IsUnique();
+
+                    b.ToTable("part_features", (string)null);
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.BomItem", b =>
                 {
                     b.HasOne("AiCopilot.Infrastructure.Data.Entities.Part", "ChildPart")
@@ -319,6 +364,17 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Navigation("Embedding");
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.PartFeature", b =>
+                {
+                    b.HasOne("AiCopilot.Infrastructure.Data.Entities.Part", "Part")
+                        .WithOne("Features")
+                        .HasForeignKey("AiCopilot.Infrastructure.Data.Entities.PartFeature", "PartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Part");
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Document", b =>
                 {
                     b.Navigation("Embeddings");
@@ -341,6 +397,8 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Navigation("ChildBomItems");
 
                     b.Navigation("Documents");
+
+                    b.Navigation("Features");
 
                     b.Navigation("ParentBomItems");
                 });

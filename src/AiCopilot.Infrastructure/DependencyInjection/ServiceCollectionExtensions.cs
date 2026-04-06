@@ -39,6 +39,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IPlmMockApiClient, PlmMockApiClient>();
 
         services.AddScoped<IEmbeddingService, EmbeddingService>();
+        services.AddScoped<IPartFeatureService, PartFeatureService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
