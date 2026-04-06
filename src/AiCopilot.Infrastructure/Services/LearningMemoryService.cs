@@ -18,6 +18,49 @@ internal sealed class LearningMemoryService : ILearningMemoryService
         _dbContext = dbContext;
     }
 
+    public async Task<ReusablePlanResult?> FindReusablePlanAsync(
+        string scenario,
+        double minimumSuccessRate = 0.80d,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scenario);
+
+        var normalizedScenario = NormalizeScenario(scenario);
+        var memories = await _dbContext.Set<LearningMemory>()
+            .AsNoTracking()
+            .Where(x => x.SuccessRate > minimumSuccessRate)
+            .ToListAsync(cancellationToken);
+
+        LearningMemory? bestMatch = null;
+        var bestSimilarity = 0d;
+
+        foreach (var memory in memories)
+        {
+            var similarity = CalculateSimilarity(normalizedScenario, memory.Scenario);
+            if (similarity > bestSimilarity)
+            {
+                bestSimilarity = similarity;
+                bestMatch = memory;
+            }
+        }
+
+        if (bestMatch is null || bestSimilarity < 0.60d)
+        {
+            return null;
+        }
+
+        var steps = JsonSerializer.Deserialize<List<PlannerStep>>(bestMatch.Plan, JsonOptions) ?? [];
+        var reusablePlan = new PlannerResponse(
+            $"Reuse a previously successful execution plan for: {scenario.Trim()}",
+            steps);
+
+        return new ReusablePlanResult(
+            bestMatch.Scenario,
+            bestMatch.SuccessRate,
+            bestSimilarity,
+            reusablePlan);
+    }
+
     public async Task<LearningMemoryResult> StoreExecutionOutcomeAsync(
         string scenario,
         PlannerResponse plan,
@@ -80,4 +123,26 @@ internal sealed class LearningMemoryService : ILearningMemoryService
             scenario.Trim()
                 .ToUpperInvariant()
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static double CalculateSimilarity(string left, string right)
+    {
+        if (string.Equals(left, right, StringComparison.Ordinal))
+        {
+            return 1d;
+        }
+
+        var leftTokens = left.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+        var rightTokens = right.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (leftTokens.Count == 0 || rightTokens.Count == 0)
+        {
+            return 0d;
+        }
+
+        var intersectionCount = leftTokens.Intersect(rightTokens, StringComparer.Ordinal).Count();
+        var unionCount = leftTokens.Union(rightTokens, StringComparer.Ordinal).Count();
+        return unionCount == 0 ? 0d : (double)intersectionCount / unionCount;
+    }
 }

@@ -6,19 +6,37 @@ namespace AiCopilot.Infrastructure.Services;
 
 internal sealed class PlannerAgent : IPlannerAgent
 {
+    private readonly ILearningMemoryService _learningMemoryService;
     private readonly ILogger<PlannerAgent> _logger;
 
-    public PlannerAgent(ILogger<PlannerAgent> logger)
+    public PlannerAgent(
+        ILearningMemoryService learningMemoryService,
+        ILogger<PlannerAgent> logger)
     {
+        _learningMemoryService = learningMemoryService;
         _logger = logger;
     }
 
-    public Task<PlannerResponse> CreatePlanAsync(PlannerRequest request, CancellationToken cancellationToken = default)
+    public async Task<PlannerResponse> CreatePlanAsync(PlannerRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Query);
 
         var normalizedQuery = request.Query.Trim();
+
+        var reusablePlan = await _learningMemoryService.FindReusablePlanAsync(normalizedQuery, cancellationToken: cancellationToken);
+        if (reusablePlan is not null)
+        {
+            _logger.LogInformation(
+                "PlannerAgent reused a stored plan for query: {Query}. MatchedScenario={Scenario} SuccessRate={SuccessRate:F2} Similarity={Similarity:F2}",
+                normalizedQuery,
+                reusablePlan.Scenario,
+                reusablePlan.SuccessRate,
+                reusablePlan.SimilarityScore);
+
+            return reusablePlan.Plan;
+        }
+
         var goal = BuildGoal(normalizedQuery);
 
         var steps = new List<PlannerStep>
@@ -42,7 +60,7 @@ internal sealed class PlannerAgent : IPlannerAgent
 
         _logger.LogInformation("PlannerAgent created a {StepCount}-step plan for query: {Query}", steps.Count, normalizedQuery);
 
-        return Task.FromResult(new PlannerResponse(goal, steps));
+        return new PlannerResponse(goal, steps);
     }
 
     private static string BuildGoal(string query)
