@@ -71,6 +71,12 @@ Health checks are configured for:
 - PostgreSQL via `pg_isready`
 - Redis via `redis-cli ping`
 
+Container startup notes:
+
+- The API persists ASP.NET Core data-protection keys in a Docker volume so auth/session protection keys survive container restarts.
+- The worker uses the ASP.NET Core runtime image because the app depends on `Microsoft.AspNetCore.App`.
+- The seed container now waits until the migrated schema exists before running the SQL script, and it stops on the first SQL error.
+
 ## Local Docker startup flow
 
 1. Start the full stack:
@@ -87,6 +93,13 @@ docker compose up --build
 - `aicopilot-worker`
 
 3. Let the `aicopilot-seed` container complete once. It inserts sample parts, BOM data, documents, embeddings, and digital twin data for local testing.
+
+If you changed the compose stack after a failed startup, rebuild and recreate everything cleanly:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
 
 4. Open the API at:
 

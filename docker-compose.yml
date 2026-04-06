@@ -44,6 +44,8 @@ services:
     container_name: aicopilot-api
     ports:
       - "5000:8080"
+    volumes:
+      - api-dataprotection:/root/.aspnet/DataProtection-Keys
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -131,7 +133,11 @@ services:
       - /bin/sh
       - -c
       - >
-        psql -h postgres -U postgres -d aicopilot_plm -f /seed/seed-data.sql
+        until psql -h postgres -U postgres -d aicopilot_plm -tAc "SELECT to_regclass('public.parts')" | grep -q parts; do
+          echo 'Waiting for migrated schema...';
+          sleep 2;
+        done &&
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d aicopilot_plm -f /seed/seed-data.sql
     volumes:
       - ./docker/seed/seed-data.sql:/seed/seed-data.sql:ro
     networks:
@@ -144,3 +150,4 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  api-dataprotection:
