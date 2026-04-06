@@ -11,6 +11,7 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Embedding> Embeddings => Set<Embedding>();
     public DbSet<PartFeature> PartFeatures => Set<PartFeature>();
+    public DbSet<DigitalTwinState> DigitalTwinStates => Set<DigitalTwinState>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
@@ -91,6 +92,34 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
             entity.HasOne(x => x.Part)
                 .WithOne(x => x.Features)
                 .HasForeignKey<PartFeature>(x => x.PartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.PartId)
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<DigitalTwinState>(entity =>
+        {
+            entity.ToTable("digital_twin_state");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PartHealth)
+                .HasColumnName("part_health")
+                .HasMaxLength(32)
+                .IsRequired();
+            entity.Property(x => x.RiskScore)
+                .HasColumnName("risk_score")
+                .HasColumnType("double precision");
+            entity.Property(x => x.Trends)
+                .HasColumnName("trends")
+                .HasColumnType("jsonb")
+                .IsRequired();
+            entity.Property(x => x.UpdatedUtc)
+                .HasColumnName("updated_utc")
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(x => x.Part)
+                .WithOne(x => x.DigitalTwinState)
+                .HasForeignKey<DigitalTwinState>(x => x.PartId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(x => x.PartId)

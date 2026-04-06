@@ -20,8 +20,12 @@ internal sealed partial class AutoOrchestrationService
     public async Task HandleMonitoringIssuesAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
+        var digitalTwinService = scope.ServiceProvider.GetRequiredService<IDigitalTwinService>();
         var monitoringAgent = scope.ServiceProvider.GetRequiredService<IMonitoringAgent>();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAgentOrchestrator>();
+
+        var refreshedStates = await digitalTwinService.RefreshAllStatesAsync(cancellationToken);
+        _logger.LogInformation("Refreshed {Count} digital twin state record(s) before daily monitoring.", refreshedStates.Count);
 
         var response = await monitoringAgent.ScanAsync(new MonitoringRequest(), cancellationToken);
 
@@ -51,6 +55,7 @@ internal sealed partial class AutoOrchestrationService
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<PlmDbContext>();
+        var digitalTwinService = scope.ServiceProvider.GetRequiredService<IDigitalTwinService>();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAgentOrchestrator>();
 
         var newParts = await dbContext.Parts
@@ -61,6 +66,11 @@ internal sealed partial class AutoOrchestrationService
 
         foreach (var part in newParts)
         {
+            if (await dbContext.PartFeatures.AsNoTracking().AnyAsync(x => x.PartId == part.Id, cancellationToken))
+            {
+                await digitalTwinService.RefreshPartStateAsync(part.Id, cancellationToken);
+            }
+
             var query = $"FIND_DUPLICATE part number {part.PartNumber} name \"{part.Name}\"";
             var result = await orchestrator.ExecuteAsync(new MultiAgentRequest(query), cancellationToken);
 
@@ -80,6 +90,11 @@ internal sealed partial class AutoOrchestrationService
 
         foreach (var bomItem in newBomItems)
         {
+            if (await dbContext.PartFeatures.AsNoTracking().AnyAsync(x => x.PartId == bomItem.ParentPartId, cancellationToken))
+            {
+                await digitalTwinService.RefreshPartStateAsync(bomItem.ParentPartId, cancellationToken);
+            }
+
             var query = $"ANALYZE_BOM {bomItem.ParentPart.PartNumber}";
             var result = await orchestrator.ExecuteAsync(new MultiAgentRequest(query), cancellationToken);
 

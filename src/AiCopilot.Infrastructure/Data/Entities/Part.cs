@@ -11,4 +11,5 @@ public class Part
     public ICollection<BomItem> ChildBomItems { get; set; } = new List<BomItem>();
     public ICollection<Document> Documents { get; set; } = new List<Document>();
     public PartFeature? Features { get; set; }
+    public DigitalTwinState? DigitalTwinState { get; set; }
 }

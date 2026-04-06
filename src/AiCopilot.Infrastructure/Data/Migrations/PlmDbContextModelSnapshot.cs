@@ -140,6 +140,44 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.ToTable("documents", (string)null);
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.DigitalTwinState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PartHealth")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("part_health");
+
+                    b.Property<double>("RiskScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("risk_score");
+
+                    b.Property<string>("Trends")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("trends");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartId")
+                        .IsUnique();
+
+                    b.ToTable("digital_twin_state", (string)null);
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Embedding", b =>
                 {
                     b.Property<Guid>("Id")
@@ -364,6 +402,17 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.Navigation("Embedding");
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.DigitalTwinState", b =>
+                {
+                    b.HasOne("AiCopilot.Infrastructure.Data.Entities.Part", "Part")
+                        .WithOne("DigitalTwinState")
+                        .HasForeignKey("AiCopilot.Infrastructure.Data.Entities.DigitalTwinState", "PartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Part");
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.PartFeature", b =>
                 {
                     b.HasOne("AiCopilot.Infrastructure.Data.Entities.Part", "Part")
@@ -395,6 +444,8 @@ namespace AiCopilot.Infrastructure.Data.Migrations
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Part", b =>
                 {
                     b.Navigation("ChildBomItems");
+
+                    b.Navigation("DigitalTwinState");
 
                     b.Navigation("Documents");
 
