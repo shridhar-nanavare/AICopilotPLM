@@ -13,6 +13,78 @@
                 messages: []
             };
         },
+        computed: {
+            dashboardRiskIndicators() {
+                const items = this.recommendations.slice(0, 3);
+                const fallbackSummary = this.summary || "No assessment yet.";
+
+                if (items.length === 0) {
+                    return [
+                        {
+                            label: "Overall risk",
+                            status: "green",
+                            state: "Stable",
+                            detail: fallbackSummary
+                        },
+                        {
+                            label: "Prediction confidence",
+                            status: "yellow",
+                            state: "Waiting",
+                            detail: "Ask a question to generate live recommendations and risk signals."
+                        },
+                        {
+                            label: "Action urgency",
+                            status: "green",
+                            state: "Normal",
+                            detail: "No immediate actions detected."
+                        }
+                    ];
+                }
+
+                return items.map((item, index) => {
+                    const risk = this.getRiskState(item);
+                    const labels = ["Overall risk", "Prediction confidence", "Action urgency"];
+                    return {
+                        label: labels[index] || `Indicator ${index + 1}`,
+                        status: risk.color,
+                        state: risk.label,
+                        detail: `${item.partNumber} · rank ${this.formatScore(item.rankingScore)} · similarity ${this.formatScore(item.similarityScore)}`
+                    };
+                });
+            },
+            dashboardPredictions() {
+                const items = this.recommendations.slice(0, 3);
+
+                if (items.length === 0) {
+                    return [
+                        {
+                            title: "No predictions yet",
+                            value: "Waiting for chat results",
+                            detail: "Predictions will populate from the most recent grounded response."
+                        }
+                    ];
+                }
+
+                return items.map((item) => ({
+                    title: `${item.partNumber} forecast`,
+                    value: this.getPredictionLabel(item),
+                    detail: `${item.partName} appears ${this.getPredictionTone(item)} based on the returned ranking and similarity signals.`
+                }));
+            },
+            dashboardSuggestions() {
+                const items = this.recommendations.slice(0, 3);
+
+                if (items.length === 0) {
+                    return [
+                        "Start with a part question or BOM analysis request to generate grounded suggestions.",
+                        "Use specific part numbers for sharper recommendations.",
+                        "Follow up in the same session to keep context connected."
+                    ];
+                }
+
+                return items.map((item) => this.getSuggestion(item));
+            }
+        },
         methods: {
             async sendMessage() {
                 const trimmedQuery = this.query.trim();
@@ -75,6 +147,59 @@
                 }
 
                 return value.toFixed(2);
+            },
+            getRiskState(item) {
+                if (item.rankingScore >= 0.85 || item.similarityScore >= 0.9) {
+                    return {
+                        label: "High focus",
+                        color: "red"
+                    };
+                }
+
+                if (item.rankingScore >= 0.6 || item.similarityScore >= 0.75) {
+                    return {
+                        label: "Watch",
+                        color: "yellow"
+                    };
+                }
+
+                return {
+                    label: "Stable",
+                    color: "green"
+                };
+            },
+            getPredictionLabel(item) {
+                if (item.rankingScore >= 0.85) {
+                    return "Potential duplicate or high relevance";
+                }
+
+                if (item.rankingScore >= 0.6) {
+                    return "Needs review";
+                }
+
+                return "Low concern";
+            },
+            getPredictionTone(item) {
+                if (item.similarityScore >= 0.9) {
+                    return "strongly related";
+                }
+
+                if (item.similarityScore >= 0.75) {
+                    return "possibly related";
+                }
+
+                return "lower priority";
+            },
+            getSuggestion(item) {
+                if (item.rankingScore >= 0.85) {
+                    return `Review ${item.partNumber} first and confirm whether ${item.partName} should be merged, blocked, or escalated.`;
+                }
+
+                if (item.rankingScore >= 0.6) {
+                    return `Inspect ${item.partNumber} with a targeted follow-up query to validate the recommendation before action.`;
+                }
+
+                return `Keep ${item.partNumber} as a background candidate and prioritize higher-ranked recommendations first.`;
             }
         },
         template: `
@@ -83,6 +208,49 @@
                     <span class="eyebrow">Vue 3 Chat</span>
                     <h1>AI Copilot for grounded part guidance.</h1>
                     <p>Ask about parts, BOM structure, or recommendations. The interface keeps the current session, shows the latest response, and surfaces ranked recommendation cards from the chat API.</p>
+                </section>
+
+                <section class="dashboard">
+                    <article class="panel dashboard-panel">
+                        <div class="dashboard-header">
+                            <h2>Risk indicators</h2>
+                            <p>Traffic-light guidance based on the latest recommendation signals.</p>
+                        </div>
+                        <div class="risk-grid">
+                            <div v-for="indicator in dashboardRiskIndicators" :key="indicator.label" class="risk-card">
+                                <div class="risk-top">
+                                    <span class="risk-dot" :class="'risk-' + indicator.status"></span>
+                                    <strong>{{ indicator.label }}</strong>
+                                </div>
+                                <div class="risk-state">{{ indicator.state }}</div>
+                                <div class="risk-detail">{{ indicator.detail }}</div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="panel dashboard-panel">
+                        <div class="dashboard-header">
+                            <h2>Predictions</h2>
+                            <p>Quick rule-of-thumb interpretations from the current result set.</p>
+                        </div>
+                        <div class="prediction-list">
+                            <div v-for="prediction in dashboardPredictions" :key="prediction.title" class="prediction-card">
+                                <div class="prediction-title">{{ prediction.title }}</div>
+                                <div class="prediction-value">{{ prediction.value }}</div>
+                                <div class="prediction-detail">{{ prediction.detail }}</div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="panel dashboard-panel">
+                        <div class="dashboard-header">
+                            <h2>Suggestions</h2>
+                            <p>Recommended next moves based on the top ranked outputs.</p>
+                        </div>
+                        <ul class="suggestion-list">
+                            <li v-for="suggestion in dashboardSuggestions" :key="suggestion">{{ suggestion }}</li>
+                        </ul>
+                    </article>
                 </section>
 
                 <section class="workspace">

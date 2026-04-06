@@ -77,12 +77,111 @@ body {
     gap: 22px;
 }
 
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    margin-bottom: 22px;
+}
+
 .panel {
     border: 1px solid var(--line);
     border-radius: var(--radius-xl);
     background: var(--panel);
     box-shadow: var(--shadow);
     backdrop-filter: blur(18px);
+}
+
+.dashboard-panel {
+    padding: 20px;
+}
+
+.dashboard-header {
+    margin-bottom: 16px;
+}
+
+.dashboard-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.dashboard-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.risk-grid,
+.prediction-list {
+    display: grid;
+    gap: 12px;
+}
+
+.risk-card,
+.prediction-card {
+    padding: 14px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.58);
+}
+
+.risk-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.risk-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.04);
+}
+
+.risk-red {
+    background: #c14a37;
+}
+
+.risk-yellow {
+    background: #d3a12c;
+}
+
+.risk-green {
+    background: #31835f;
+}
+
+.risk-state,
+.prediction-value {
+    font-size: 1.02rem;
+    font-weight: 700;
+}
+
+.risk-detail,
+.prediction-detail {
+    margin-top: 8px;
+    color: var(--muted);
+    line-height: 1.5;
+    font-size: 0.93rem;
+}
+
+.prediction-title {
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+}
+
+.suggestion-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #324137;
+}
+
+.suggestion-list li {
+    margin-bottom: 12px;
+    line-height: 1.55;
 }
 
 .chat-panel {
@@ -273,6 +372,10 @@ body {
 }
 
 @media (max-width: 980px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+
     .workspace {
         grid-template-columns: 1fr;
     }
