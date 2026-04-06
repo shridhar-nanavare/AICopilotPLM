@@ -48,3 +48,24 @@ dotnet run --project src/AiCopilot.Worker
 ```bash
 docker compose up --build
 ```
+
+Services started by Compose:
+
+- API on `http://localhost:8080`
+- Worker as a background container
+- PostgreSQL with `pgvector` on `localhost:5432`
+- Redis on `localhost:6379`
+
+Important container environment wiring:
+
+- `ConnectionStrings__PlmDatabase=Host=postgres;Port=5432;...`
+- `PlmApi__BaseUrl=http://api:8080/`
+- `Redis__ConnectionString=redis:6379`
+- JWT, tenant, and sample auth users are injected through compose environment variables
+
+Health checks are configured for:
+
+- API via `GET /health`
+- Worker via process check
+- PostgreSQL via `pg_isready`
+- Redis via `redis-cli ping`

@@ -1,22 +1,126 @@
-version: "3.9"
-
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aicopilot-postgres
+    environment:
+      POSTGRES_DB: aicopilot_plm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aicopilot_plm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - aicopilot-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicopilot-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - aicopilot-net
+
   api:
     build:
       context: .
       dockerfile: src/AiCopilot.Api/Dockerfile
     image: aicopilot-api:latest
+    container_name: aicopilot-api
     ports:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PlmDatabase: Host=postgres;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres
+      PlmApi__BaseUrl: http://api:8080/
+      AiProvider__Endpoint: https://example-ai-provider.local
+      AiProvider__ApiKey: use-secrets-in-production
+      Tenant__DefaultTenantId: default
+      Jwt__Issuer: AiCopilot
+      Jwt__Audience: AiCopilotClients
+      Jwt__SigningKey: change-this-signing-key-in-production-12345
+      Jwt__ExpirationMinutes: 120
+      Auth__Users__0__Username: user
+      Auth__Users__0__Password: user123!
+      Auth__Users__0__Role: User
+      Auth__Users__0__TenantId: default
+      Auth__Users__1__Username: engineer
+      Auth__Users__1__Password: engineer123!
+      Auth__Users__1__Role: Engineer
+      Auth__Users__1__TenantId: default
+      Auth__Users__2__Username: admin
+      Auth__Users__2__Password: admin123!
+      Auth__Users__2__Role: Admin
+      Auth__Users__2__TenantId: default
+      Redis__ConnectionString: redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 25s
+    networks:
+      - aicopilot-net
 
   worker:
     build:
       context: .
       dockerfile: src/AiCopilot.Worker/Dockerfile
     image: aicopilot-worker:latest
+    container_name: aicopilot-worker
     environment:
       DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__PlmDatabase: Host=postgres;Port=5432;Database=aicopilot_plm;Username=postgres;Password=postgres
+      PlmApi__BaseUrl: http://api:8080/
+      AiProvider__Endpoint: https://example-ai-provider.local
+      AiProvider__ApiKey: use-secrets-in-production
+      Tenant__DefaultTenantId: default
+      WorkerJobs__RunDailyScanOnStartup: "true"
+      WorkerJobs__DailyScanHourUtc: "2"
+      WorkerJobs__EventPollIntervalSeconds: "60"
+      WorkerJobs__InitialEventLookbackMinutes: "5"
+      Redis__ConnectionString: redis:6379
     depends_on:
-      - api
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'AiCopilot.Worker.dll' > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 25s
+    networks:
+      - aicopilot-net
+
+networks:
+  aicopilot-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
