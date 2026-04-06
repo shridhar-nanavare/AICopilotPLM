@@ -51,10 +51,11 @@ docker compose up --build
 
 Services started by Compose:
 
-- API on `http://localhost:8080`
+- API on `http://localhost:5000`
 - Worker as a background container
 - PostgreSQL with `pgvector` on `localhost:5432`
 - Redis on `localhost:6379`
+- Seed job as a one-shot container that inserts sample local data after the API is healthy
 
 Important container environment wiring:
 
@@ -69,3 +70,53 @@ Health checks are configured for:
 - Worker via process check
 - PostgreSQL via `pg_isready`
 - Redis via `redis-cli ping`
+
+## Local Docker startup flow
+
+1. Start the full stack:
+
+```bash
+docker compose up --build
+```
+
+2. Wait until these services are healthy:
+
+- `aicopilot-postgres`
+- `aicopilot-redis`
+- `aicopilot-api`
+- `aicopilot-worker`
+
+3. Let the `aicopilot-seed` container complete once. It inserts sample parts, BOM data, documents, embeddings, and digital twin data for local testing.
+
+4. Open the API at:
+
+```text
+http://localhost:5000
+```
+
+5. Optional health check:
+
+```bash
+curl http://localhost:5000/health
+```
+
+## Seed data
+
+The local seed script is:
+
+- [`docker/seed/seed-data.sql`](/C:/Users/ShridharNanavare/AICopilotPLM/docker/seed/seed-data.sql)
+
+It adds sample tenant-scoped data for:
+
+- parts
+- BOM rows
+- documents
+- embeddings
+- part features
+- digital twin state
+
+If you need to rerun the seed manually after the stack is up:
+
+```bash
+docker compose run --rm seed
+```

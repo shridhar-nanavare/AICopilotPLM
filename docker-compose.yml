@@ -43,7 +43,7 @@ services:
     image: aicopilot-api:latest
     container_name: aicopilot-api
     ports:
-      - "8080:8080"
+      - "5000:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -114,6 +114,26 @@ services:
       timeout: 5s
       retries: 8
       start_period: 25s
+    networks:
+      - aicopilot-net
+
+  seed:
+    image: postgres:16-alpine
+    container_name: aicopilot-seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    command:
+      - /bin/sh
+      - -c
+      - >
+        psql -h postgres -U postgres -d aicopilot_plm -f /seed/seed-data.sql
+    volumes:
+      - ./docker/seed/seed-data.sql:/seed/seed-data.sql:ro
     networks:
       - aicopilot-net
 

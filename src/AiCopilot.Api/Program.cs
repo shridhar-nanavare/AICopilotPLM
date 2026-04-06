@@ -1,6 +1,8 @@
 using AiCopilot.Api.Extensions;
 using AiCopilot.Application.DependencyInjection;
+using AiCopilot.Infrastructure.Data;
 using AiCopilot.Infrastructure.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +20,12 @@ builder.Services
 builder.Services.AddApiServices(builder.Configuration);
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<PlmDbContext>();
+    dbContext.Database.Migrate();
+}
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
