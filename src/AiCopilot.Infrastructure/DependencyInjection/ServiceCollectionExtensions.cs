@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPartFeatureService, PartFeatureService>();
         services.AddScoped<IPredictionService, PredictionService>();
         services.AddScoped<IDigitalTwinService, DigitalTwinService>();
+        services.AddScoped<ILearningMemoryService, LearningMemoryService>();
         services.AddScoped<ISimulationService, SimulationService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IChatService, ChatService>();

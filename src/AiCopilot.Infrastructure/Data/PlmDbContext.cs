@@ -12,6 +12,7 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
     public DbSet<Embedding> Embeddings => Set<Embedding>();
     public DbSet<PartFeature> PartFeatures => Set<PartFeature>();
     public DbSet<DigitalTwinState> DigitalTwinStates => Set<DigitalTwinState>();
+    public DbSet<LearningMemory> LearningMemories => Set<LearningMemory>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
@@ -123,6 +124,37 @@ public class PlmDbContext(DbContextOptions<PlmDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(x => x.PartId)
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<LearningMemory>(entity =>
+        {
+            entity.ToTable("learning_memory");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Scenario)
+                .HasColumnName("scenario")
+                .HasColumnType("text")
+                .IsRequired();
+            entity.Property(x => x.Plan)
+                .HasColumnName("plan")
+                .HasColumnType("jsonb")
+                .IsRequired();
+            entity.Property(x => x.SuccessRate)
+                .HasColumnName("success_rate")
+                .HasColumnType("double precision")
+                .HasDefaultValue(0d);
+            entity.Property(x => x.ExecutionCount)
+                .HasColumnName("execution_count")
+                .HasDefaultValue(0);
+            entity.Property(x => x.LastOutcome)
+                .HasColumnName("last_outcome")
+                .HasColumnType("text")
+                .IsRequired();
+            entity.Property(x => x.UpdatedUtc)
+                .HasColumnName("updated_utc")
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(x => x.Scenario)
                 .IsUnique();
         });
 

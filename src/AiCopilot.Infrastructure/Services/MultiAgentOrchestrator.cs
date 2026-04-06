@@ -12,15 +12,18 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
 
     private readonly IPlannerAgent _plannerAgent;
     private readonly IToolExecutor _toolExecutor;
+    private readonly ILearningMemoryService _learningMemoryService;
     private readonly ILogger<MultiAgentOrchestrator> _logger;
 
     public MultiAgentOrchestrator(
         IPlannerAgent plannerAgent,
         IToolExecutor toolExecutor,
+        ILearningMemoryService learningMemoryService,
         ILogger<MultiAgentOrchestrator> logger)
     {
         _plannerAgent = plannerAgent;
         _toolExecutor = toolExecutor;
+        _learningMemoryService = learningMemoryService;
         _logger = logger;
     }
 
@@ -49,7 +52,7 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
 
             if (!stepResult.Succeeded)
             {
-                return new MultiAgentResponse(
+                var response = new MultiAgentResponse(
                     plan.Goal,
                     intent,
                     false,
@@ -58,10 +61,13 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                     context.FinalResult,
                     policy.RiskLevel,
                     context.ApprovalRequired);
+
+                await _learningMemoryService.StoreExecutionOutcomeAsync(request.Query, plan, response, cancellationToken);
+                return response;
             }
         }
 
-        return new MultiAgentResponse(
+        var finalResponse = new MultiAgentResponse(
             plan.Goal,
             intent,
             true,
@@ -70,6 +76,9 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
             context.FinalResult,
             policy.RiskLevel,
             context.ApprovalRequired);
+
+        await _learningMemoryService.StoreExecutionOutcomeAsync(request.Query, plan, finalResponse, cancellationToken);
+        return finalResponse;
     }
 
     private async Task<MultiAgentStepResult> ExecuteSearchStepAsync(

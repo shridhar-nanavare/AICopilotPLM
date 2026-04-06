@@ -226,6 +226,53 @@ namespace AiCopilot.Infrastructure.Data.Migrations
                     b.ToTable("embeddings", (string)null);
                 });
 
+            modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.LearningMemory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ExecutionCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("execution_count")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("LastOutcome")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("last_outcome");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("plan");
+
+                    b.Property<string>("Scenario")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("scenario");
+
+                    b.Property<double>("SuccessRate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasColumnName("success_rate")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Scenario")
+                        .IsUnique();
+
+                    b.ToTable("learning_memory", (string)null);
+                });
+
             modelBuilder.Entity("AiCopilot.Infrastructure.Data.Entities.Feedback", b =>
                 {
                     b.Property<Guid>("Id")
