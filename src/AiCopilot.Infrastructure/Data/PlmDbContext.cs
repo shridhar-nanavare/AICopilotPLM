@@ -8,11 +8,13 @@ namespace AiCopilot.Infrastructure.Data;
 public class PlmDbContext : DbContext
 {
     private readonly ICurrentTenantProvider _currentTenantProvider;
+    private readonly bool _isInMemoryProvider;
 
     public PlmDbContext(DbContextOptions<PlmDbContext> options, ICurrentTenantProvider currentTenantProvider)
         : base(options)
     {
         _currentTenantProvider = currentTenantProvider;
+        _isInMemoryProvider = options.Extensions.Any(x => x.GetType().Name.Contains("InMemory", StringComparison.OrdinalIgnoreCase));
     }
 
     private string CurrentTenantId => _currentTenantProvider.TenantId;
@@ -218,7 +220,7 @@ public class PlmDbContext : DbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.TenantId).HasColumnName("tenant_id").HasMaxLength(128).IsRequired();
             entity.Property(x => x.ChunkText).HasColumnType("text").IsRequired();
-            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            if (_isInMemoryProvider)
             {
                 entity.Ignore(x => x.Vector);
             }

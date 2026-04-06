@@ -141,6 +141,6 @@ public sealed class ChatServiceTests
         var tenantProvider = new Mock<ICurrentTenantProvider>();
         tenantProvider.SetupGet(x => x.TenantId).Returns("tenant-a");
 
-        return new PlmDbContext(options, tenantProvider.Object);
+        return new TestPlmDbContext(options, tenantProvider.Object);
     }
 }

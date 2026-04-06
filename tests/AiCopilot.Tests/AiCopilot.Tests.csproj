@@ -12,6 +12,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
@@ -23,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\AiCopilot.Api\AiCopilot.Api.csproj" />
     <ProjectReference Include="..\..\src\AiCopilot.Application\AiCopilot.Application.csproj" />
     <ProjectReference Include="..\..\src\AiCopilot.Infrastructure\AiCopilot.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\AiCopilot.Shared\AiCopilot.Shared.csproj" />
