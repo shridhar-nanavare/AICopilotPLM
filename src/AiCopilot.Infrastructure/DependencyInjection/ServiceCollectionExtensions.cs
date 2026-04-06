@@ -21,6 +21,12 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services
+            .AddOptions<PlmApiOptions>()
+            .Bind(configuration.GetSection(PlmApiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
             .AddHttpClient<IOpenAiService, OpenAiService>((serviceProvider, httpClient) =>
             {
                 var options = serviceProvider
@@ -30,10 +36,14 @@ public static class ServiceCollectionExtensions
                 httpClient.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
             });
 
+        services.AddHttpClient<IPlmMockApiClient, PlmMockApiClient>();
+
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
+        services.AddScoped<IPlmMockApiService, PlmMockApiService>();
+        services.AddScoped<IToolExecutor, ToolExecutor>();
         services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
         var connectionString = configuration.GetConnectionString("PlmDatabase")

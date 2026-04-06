@@ -1,29 +1,20 @@
 using System.Text.RegularExpressions;
 using AiCopilot.Application.Abstractions;
-using AiCopilot.Infrastructure.Data;
-using AiCopilot.Infrastructure.Data.Entities;
 using AiCopilot.Shared.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AiCopilot.Infrastructure.Services;
 
 internal sealed partial class AgentOrchestrator : IAgentOrchestrator
 {
-    private readonly PlmDbContext _dbContext;
-    private readonly IEmbeddingService _embeddingService;
-    private readonly ISearchService _searchService;
+    private readonly IToolExecutor _toolExecutor;
     private readonly ILogger<AgentOrchestrator> _logger;
 
     public AgentOrchestrator(
-        PlmDbContext dbContext,
-        IEmbeddingService embeddingService,
-        ISearchService searchService,
+        IToolExecutor toolExecutor,
         ILogger<AgentOrchestrator> logger)
     {
-        _dbContext = dbContext;
-        _embeddingService = embeddingService;
-        _searchService = searchService;
+        _toolExecutor = toolExecutor;
         _logger = logger;
     }
 
@@ -90,36 +81,25 @@ internal sealed partial class AgentOrchestrator : IAgentOrchestrator
                 "CREATE_PART requires both a part number and a name. Example: 'CREATE_PART part number PN-100 name Motor Housing'.");
         }
 
-        var existingPart = await _dbContext.Parts
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.PartNumber == partNumber, cancellationToken);
+        try
+        {
+            var result = await _toolExecutor.CreatePartAsync(
+                new CreatePartRequest(partNumber, name),
+                cancellationToken);
 
-        if (existingPart is not null)
+            return new AgentResponse(
+                AgentIntent.CreatePart,
+                true,
+                $"Created part {result.PartNumber} ({result.Name}).",
+                CreatedPart: result);
+        }
+        catch (InvalidOperationException exception)
         {
             return new AgentResponse(
                 AgentIntent.CreatePart,
                 false,
-                $"Part '{partNumber}' already exists.");
+                exception.Message);
         }
-
-        var part = new Part
-        {
-            Id = Guid.NewGuid(),
-            PartNumber = partNumber,
-            Name = name
-        };
-
-        _dbContext.Parts.Add(part);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await _embeddingService.ProcessPart(part, cancellationToken);
-
-        var result = new CreatePartResult(part.Id, part.PartNumber, part.Name);
-
-        return new AgentResponse(
-            AgentIntent.CreatePart,
-            true,
-            $"Created part {part.PartNumber} ({part.Name}).",
-            CreatedPart: result);
     }
 
     private async Task<AgentResponse> FindDuplicateAsync(string query, CancellationToken cancellationToken)
@@ -141,117 +121,50 @@ internal sealed partial class AgentOrchestrator : IAgentOrchestrator
                 "FIND_DUPLICATE requires a part number, a name, or descriptive duplicate query text.");
         }
 
-        var searchResults = await _searchService.SearchAsync(
-            searchText,
-            top: 5,
-            filter: new SearchFilter(StoragePathPrefix: "generated://parts/"),
-            cancellationToken: cancellationToken);
-
-        var candidates = searchResults
-            .GroupBy(x => x.PartId)
-            .Select(group => group
-                .OrderByDescending(x => x.RankingScore)
-                .ThenByDescending(x => x.SimilarityScore)
-                .First())
-            .Select(x => new DuplicateCandidate(
-                x.EmbeddingId,
-                x.PartId,
-                x.PartNumber,
-                x.PartName,
-                x.SimilarityScore,
-                x.RankingScore))
-            .ToList();
-
-        var duplicateResult = new FindDuplicateResult(searchText, candidates);
+        var duplicateResult = await _toolExecutor.FindDuplicateAsync(
+            new FindDuplicateRequest(searchText),
+            cancellationToken);
 
         return new AgentResponse(
             AgentIntent.FindDuplicate,
             true,
-            candidates.Count == 0
+            duplicateResult.Candidates.Count == 0
                 ? "No duplicate candidates were found."
-                : $"Found {candidates.Count} duplicate candidate(s).",
+                : $"Found {duplicateResult.Candidates.Count} duplicate candidate(s).",
             DuplicateResult: duplicateResult);
     }
 
     private async Task<AgentResponse> AnalyzeBomAsync(string query, CancellationToken cancellationToken)
     {
-        var part = await FindPartAsync(query, cancellationToken);
+        var queryText = ExtractPartNumber(query) ?? ExtractPartName(query) ?? RemoveIntentKeywords(query);
 
-        if (part is null)
+        if (string.IsNullOrWhiteSpace(queryText))
         {
             return new AgentResponse(
                 AgentIntent.AnalyzeBom,
                 false,
-                "ANALYZE_BOM could not find a matching part.");
+                "ANALYZE_BOM requires a part number or descriptive part name.");
         }
 
-        var childItems = await _dbContext.Bom
-            .AsNoTracking()
-            .Where(x => x.ParentPartId == part.Id)
-            .Include(x => x.ChildPart)
-            .OrderByDescending(x => x.Quantity)
-            .ToListAsync(cancellationToken);
-
-        var parentCount = await _dbContext.Bom
-            .AsNoTracking()
-            .Where(x => x.ChildPartId == part.Id)
-            .Select(x => x.ParentPartId)
-            .Distinct()
-            .CountAsync(cancellationToken);
-
-        var components = childItems
-            .Select(x => new BomComponentSummary(
-                x.ChildPartId,
-                x.ChildPart.PartNumber,
-                x.ChildPart.Name,
-                x.Quantity))
-            .ToList();
-
-        var result = new BomAnalysisResult(
-            part.Id,
-            part.PartNumber,
-            part.Name,
-            childItems.Count,
-            parentCount,
-            childItems.Sum(x => x.Quantity),
-            components);
-
-        return new AgentResponse(
-            AgentIntent.AnalyzeBom,
-            true,
-            $"BOM analysis for {part.PartNumber}: {result.ChildCount} child component(s), used in {result.ParentCount} parent assembly(s).",
-            BomAnalysis: result);
-    }
-
-    private async Task<Part?> FindPartAsync(string query, CancellationToken cancellationToken)
-    {
-        var partNumber = ExtractPartNumber(query);
-
-        if (!string.IsNullOrWhiteSpace(partNumber))
+        try
         {
-            var exactMatch = await _dbContext.Parts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.PartNumber == partNumber, cancellationToken);
+            var result = await _toolExecutor.AnalyzeBomAsync(
+                new AnalyzeBomRequest(queryText),
+                cancellationToken);
 
-            if (exactMatch is not null)
-            {
-                return exactMatch;
-            }
+            return new AgentResponse(
+                AgentIntent.AnalyzeBom,
+                true,
+                $"BOM analysis for {result.PartNumber}: {result.ChildCount} child component(s), used in {result.ParentCount} parent assembly(s).",
+                BomAnalysis: result);
         }
-
-        var name = ExtractPartName(query);
-        var searchText = !string.IsNullOrWhiteSpace(name) ? name : RemoveIntentKeywords(query);
-
-        if (string.IsNullOrWhiteSpace(searchText))
+        catch (InvalidOperationException exception)
         {
-            return null;
+            return new AgentResponse(
+                AgentIntent.AnalyzeBom,
+                false,
+                exception.Message);
         }
-
-        return await _dbContext.Parts
-            .AsNoTracking()
-            .Where(x => EF.Functions.ILike(x.Name, $"%{searchText}%"))
-            .OrderBy(x => x.Name)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static string RemoveIntentKeywords(string query)
