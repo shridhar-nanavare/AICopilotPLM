@@ -13,17 +13,20 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
     private readonly IPlannerAgent _plannerAgent;
     private readonly IToolExecutor _toolExecutor;
     private readonly ILearningMemoryService _learningMemoryService;
+    private readonly IAuditLogService _auditLogService;
     private readonly ILogger<MultiAgentOrchestrator> _logger;
 
     public MultiAgentOrchestrator(
         IPlannerAgent plannerAgent,
         IToolExecutor toolExecutor,
         ILearningMemoryService learningMemoryService,
+        IAuditLogService auditLogService,
         ILogger<MultiAgentOrchestrator> logger)
     {
         _plannerAgent = plannerAgent;
         _toolExecutor = toolExecutor;
         _learningMemoryService = learningMemoryService;
+        _auditLogService = auditLogService;
         _logger = logger;
     }
 
@@ -37,6 +40,34 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
         var policy = _toolExecutor.GetExecutionPolicy(intent);
         var context = new ExecutionContext(request.Query, intent, request.Approved, policy);
         var stepResults = new List<MultiAgentStepResult>();
+
+        await _auditLogService.WriteAsync(
+            action: "PLAN_EXECUTION_STARTED",
+            agentDecision: $"Intent={intent}; Risk={policy.RiskLevel}",
+            userApproval: request.Approved,
+            metadata: JsonSerializer.Serialize(new
+            {
+                request.Query,
+                intent,
+                riskLevel = policy.RiskLevel.ToString(),
+                request.Approved
+            }, JsonOptions),
+            cancellationToken: cancellationToken);
+
+        if (request.Approved)
+        {
+            await _auditLogService.WriteAsync(
+                action: "USER_APPROVAL_SUBMITTED",
+                agentDecision: $"Approved execution for {intent}",
+                userApproval: true,
+                metadata: JsonSerializer.Serialize(new
+                {
+                    request.Query,
+                    intent,
+                    riskLevel = policy.RiskLevel.ToString()
+                }, JsonOptions),
+                cancellationToken: cancellationToken);
+        }
 
         foreach (var step in plan.Steps.OrderBy(x => x.Order))
         {
@@ -63,6 +94,7 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
                     context.ApprovalRequired);
 
                 await _learningMemoryService.StoreExecutionOutcomeAsync(request.Query, plan, response, cancellationToken);
+                await WriteAuditOutcomeAsync(response, cancellationToken);
                 return response;
             }
         }
@@ -78,6 +110,7 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
             context.ApprovalRequired);
 
         await _learningMemoryService.StoreExecutionOutcomeAsync(request.Query, plan, finalResponse, cancellationToken);
+        await WriteAuditOutcomeAsync(finalResponse, cancellationToken);
         return finalResponse;
     }
 
@@ -446,6 +479,33 @@ internal sealed partial class MultiAgentOrchestrator : IMultiAgentOrchestrator
 
     [GeneratedRegex(@"CREATE_PART|CREATE\s+PART|ADD\s+PART|NEW\s+PART|FIND_DUPLICATE|FIND\s+DUPLICATE|ANALYZE_BOM|ANALYZE\s+BOM|DUPLICATE|BOM|FOR", RegexOptions.IgnoreCase)]
     private static partial Regex IntentKeywordRegex();
+
+    private Task WriteAuditOutcomeAsync(MultiAgentResponse response, CancellationToken cancellationToken)
+    {
+        var action = response.ApprovalRequired
+            ? "USER_APPROVAL_REQUIRED"
+            : "PLAN_EXECUTION_COMPLETED";
+
+        return _auditLogService.WriteAsync(
+            action: action,
+            agentDecision: response.FinalSummary,
+            userApproval: response.ApprovalRequired ? false : null,
+            metadata: JsonSerializer.Serialize(new
+            {
+                response.Intent,
+                response.Succeeded,
+                response.RiskLevel,
+                response.ApprovalRequired,
+                steps = response.Steps.Select(step => new
+                {
+                    step.Order,
+                    Agent = step.Agent.ToString(),
+                    step.Succeeded,
+                    step.Summary
+                })
+            }, JsonOptions),
+            cancellationToken: cancellationToken);
+    }
 
     private sealed class ExecutionContext
     {

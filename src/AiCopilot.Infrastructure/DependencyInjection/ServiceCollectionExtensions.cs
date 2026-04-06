@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
+        services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
 
         services
             .AddHttpClient<IOpenAiService, OpenAiService>((serviceProvider, httpClient) =>
@@ -51,6 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPredictionService, PredictionService>();
         services.AddScoped<IDigitalTwinService, DigitalTwinService>();
         services.AddScoped<ILearningMemoryService, LearningMemoryService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<ISimulationService, SimulationService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IChatService, ChatService>();

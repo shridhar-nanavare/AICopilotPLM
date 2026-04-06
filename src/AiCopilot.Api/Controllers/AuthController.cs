@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using AiCopilot.Application.Abstractions;
 using AiCopilot.Api.Options;
 using AiCopilot.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -15,13 +16,16 @@ namespace AiCopilot.Api.Controllers;
 [AllowAnonymous]
 public sealed class AuthController : ControllerBase
 {
+    private readonly IAuditLogService _auditLogService;
     private readonly JwtOptions _jwtOptions;
     private readonly IReadOnlyList<AuthUserOptions> _users;
 
     public AuthController(
+        IAuditLogService auditLogService,
         IOptions<JwtOptions> jwtOptions,
         IReadOnlyList<AuthUserOptions> users)
     {
+        _auditLogService = auditLogService;
         _jwtOptions = jwtOptions.Value;
         _users = users;
     }
@@ -29,7 +33,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("token")]
     [ProducesResponseType(typeof(AuthTokenResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<AuthTokenResponse> Token([FromBody] AuthTokenRequest request)
+    public async Task<ActionResult<AuthTokenResponse>> Token([FromBody] AuthTokenRequest request, CancellationToken cancellationToken)
     {
         if (request is null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
@@ -63,6 +67,13 @@ public sealed class AuthController : ControllerBase
             signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
 
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+
+        await _auditLogService.WriteAsync(
+            action: "TOKEN_ISSUED",
+            metadata: $$"""
+            {"username":"{{user.Username}}","role":"{{user.Role}}","tenantId":"{{user.TenantId}}"}
+            """,
+            cancellationToken: cancellationToken);
 
         return Ok(new AuthTokenResponse(accessToken, expiresUtc, user.Role, user.TenantId));
     }

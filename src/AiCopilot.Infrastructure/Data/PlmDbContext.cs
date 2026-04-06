@@ -24,6 +24,7 @@ public class PlmDbContext : DbContext
     public DbSet<PartFeature> PartFeatures => Set<PartFeature>();
     public DbSet<DigitalTwinState> DigitalTwinStates => Set<DigitalTwinState>();
     public DbSet<LearningMemory> LearningMemories => Set<LearningMemory>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
@@ -179,6 +180,36 @@ public class PlmDbContext : DbContext
             entity.HasQueryFilter(x => x.TenantId == CurrentTenantId);
             entity.HasIndex(x => new { x.TenantId, x.Scenario })
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id").HasMaxLength(128).IsRequired();
+            entity.Property(x => x.Action)
+                .HasColumnName("action")
+                .HasMaxLength(256)
+                .IsRequired();
+            entity.Property(x => x.AgentDecision)
+                .HasColumnName("agent_decision")
+                .HasColumnType("text");
+            entity.Property(x => x.UserApproval)
+                .HasColumnName("user_approval");
+            entity.Property(x => x.PerformedBy)
+                .HasColumnName("performed_by")
+                .HasMaxLength(256)
+                .IsRequired();
+            entity.Property(x => x.Metadata)
+                .HasColumnName("metadata")
+                .HasColumnType("jsonb")
+                .IsRequired();
+            entity.Property(x => x.CreatedUtc)
+                .HasColumnName("created_utc")
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasQueryFilter(x => x.TenantId == CurrentTenantId);
+            entity.HasIndex(x => new { x.TenantId, x.CreatedUtc });
         });
 
         modelBuilder.Entity<Embedding>(entity =>
