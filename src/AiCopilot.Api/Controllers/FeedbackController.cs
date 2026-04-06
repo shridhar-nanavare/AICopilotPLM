@@ -1,11 +1,13 @@
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiCopilot.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "UserAccess")]
 public sealed class FeedbackController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;

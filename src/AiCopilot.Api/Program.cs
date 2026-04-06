@@ -15,7 +15,7 @@ builder.Services
     .AddApplication(builder.Configuration)
     .AddInfrastructure(builder.Configuration);
 
-builder.Services.AddApiServices();
+builder.Services.AddApiServices(builder.Configuration);
 
 var app = builder.Build();
 
@@ -23,6 +23,8 @@ app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {

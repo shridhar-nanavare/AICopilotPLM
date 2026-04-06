@@ -1,11 +1,13 @@
 using AiCopilot.Infrastructure.Services;
 using AiCopilot.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiCopilot.Api.Controllers;
 
 [ApiController]
 [Route("api/mock/plm")]
+[AllowAnonymous]
 public sealed class PlmMockController : ControllerBase
 {
     private readonly IPlmMockApiService _plmMockApiService;

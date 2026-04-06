@@ -15,12 +15,18 @@ internal sealed class SearchService : ISearchService
     private const double RecencyDecayWindowDays = 30d;
 
     private readonly PlmDbContext _dbContext;
+    private readonly ICurrentTenantProvider _currentTenantProvider;
     private readonly IOpenAiService _openAiService;
     private readonly ILogger<SearchService> _logger;
 
-    public SearchService(PlmDbContext dbContext, IOpenAiService openAiService, ILogger<SearchService> logger)
+    public SearchService(
+        PlmDbContext dbContext,
+        ICurrentTenantProvider currentTenantProvider,
+        IOpenAiService openAiService,
+        ILogger<SearchService> logger)
     {
         _dbContext = dbContext;
+        _currentTenantProvider = currentTenantProvider;
         _openAiService = openAiService;
         _logger = logger;
     }
@@ -77,11 +83,12 @@ internal sealed class SearchService : ISearchService
             FROM embeddings e
             INNER JOIN documents d ON d."Id" = e."DocumentId"
             INNER JOIN parts p ON p."Id" = d."PartId"
-            WHERE 1 = 1
+            WHERE e.tenant_id = @tenant_id
             """);
 
         var parameters = new List<NpgsqlParameter>
         {
+            new("tenant_id", _currentTenantProvider.TenantId),
             new("query_vector", queryVector),
             new("usage_normalization_cap", UsageNormalizationCap),
             new("recency_decay_window_seconds", RecencyDecayWindowDays * 24d * 60d * 60d)

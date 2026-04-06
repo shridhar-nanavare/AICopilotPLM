@@ -1,11 +1,13 @@
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiCopilot.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "UserAccess")]
 public sealed class PromptsController : ControllerBase
 {
     private readonly IPromptProcessor _promptProcessor;

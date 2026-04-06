@@ -1,8 +1,9 @@
 namespace AiCopilot.Infrastructure.Data.Entities;
 
-public class LearningMemory
+public class LearningMemory : ITenantEntity
 {
     public Guid Id { get; set; }
+    public string TenantId { get; set; } = string.Empty;
     public string Scenario { get; set; } = string.Empty;
     public string Plan { get; set; } = "[]";
     public double SuccessRate { get; set; }

@@ -27,6 +27,14 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services
+            .AddOptions<TenantOptions>()
+            .Bind(configuration.GetSection(TenantOptions.SectionName))
+            .ValidateOnStart();
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
+
+        services
             .AddHttpClient<IOpenAiService, OpenAiService>((serviceProvider, httpClient) =>
             {
                 var options = serviceProvider

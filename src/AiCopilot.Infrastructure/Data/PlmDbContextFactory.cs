@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Pgvector.EntityFrameworkCore;
+using AiCopilot.Infrastructure.Services;
 
 namespace AiCopilot.Infrastructure.Data;
 
@@ -14,6 +15,6 @@ public class PlmDbContextFactory : IDesignTimeDbContextFactory<PlmDbContext>
 
         optionsBuilder.UseNpgsql(connectionString, npgsql => npgsql.UseVector());
 
-        return new PlmDbContext(optionsBuilder.Options);
+        return new PlmDbContext(optionsBuilder.Options, new StaticTenantProvider("design-time"));
     }
 }

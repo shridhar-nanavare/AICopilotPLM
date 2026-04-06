@@ -1,8 +1,9 @@
 namespace AiCopilot.Infrastructure.Data.Entities;
 
-public class Document
+public class Document : ITenantEntity
 {
     public Guid Id { get; set; }
+    public string TenantId { get; set; } = string.Empty;
     public Guid PartId { get; set; }
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;

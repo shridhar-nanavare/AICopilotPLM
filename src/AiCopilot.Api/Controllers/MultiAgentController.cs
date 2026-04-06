@@ -1,11 +1,13 @@
 using AiCopilot.Application.Abstractions;
 using AiCopilot.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiCopilot.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "EngineerAccess")]
 public sealed class MultiAgentController : ControllerBase
 {
     private readonly IMultiAgentOrchestrator _multiAgentOrchestrator;

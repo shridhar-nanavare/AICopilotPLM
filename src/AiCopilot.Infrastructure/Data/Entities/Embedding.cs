@@ -2,9 +2,10 @@ using Pgvector;
 
 namespace AiCopilot.Infrastructure.Data.Entities;
 
-public class Embedding
+public class Embedding : ITenantEntity
 {
     public Guid Id { get; set; }
+    public string TenantId { get; set; } = string.Empty;
     public Guid DocumentId { get; set; }
     public string ChunkText { get; set; } = string.Empty;
     public Vector Vector { get; set; } = null!;
