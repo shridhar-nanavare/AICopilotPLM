@@ -7,10 +7,14 @@
                 query: "",
                 sessionId: null,
                 loading: false,
+                orchestrationLoading: false,
                 error: "",
+                orchestrationError: "",
                 summary: "",
                 recommendations: [],
-                messages: []
+                messages: [],
+                execution: null,
+                lastExecutionQuery: ""
             };
         },
         computed: {
@@ -141,6 +145,41 @@
                     this.loading = false;
                 }
             },
+            async executePlan(approved) {
+                const trimmedQuery = this.query.trim();
+                const executionQuery = trimmedQuery || this.lastExecutionQuery;
+
+                if (!executionQuery || this.orchestrationLoading) {
+                    return;
+                }
+
+                this.orchestrationError = "";
+                this.orchestrationLoading = true;
+                this.lastExecutionQuery = executionQuery;
+
+                try {
+                    const response = await fetch("/api/multi-agent", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            query: executionQuery,
+                            approved: !!approved
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error("The execution request could not be completed.");
+                    }
+
+                    this.execution = await response.json();
+                } catch (error) {
+                    this.orchestrationError = error instanceof Error ? error.message : "Unexpected error while executing the plan.";
+                } finally {
+                    this.orchestrationLoading = false;
+                }
+            },
             formatScore(value) {
                 if (typeof value !== "number") {
                     return "0.00";
@@ -200,6 +239,26 @@
                 }
 
                 return `Keep ${item.partNumber} as a background candidate and prioritize higher-ranked recommendations first.`;
+            },
+            getStepStatus(step, index) {
+                if (!step.succeeded) {
+                    return {
+                        label: "Blocked",
+                        tone: "red"
+                    };
+                }
+
+                if (this.execution && this.execution.succeeded && index === this.execution.steps.length - 1) {
+                    return {
+                        label: "Completed",
+                        tone: "green"
+                    };
+                }
+
+                return {
+                    label: "Done",
+                    tone: "yellow"
+                };
             }
         },
         template: `
@@ -251,6 +310,61 @@
                             <li v-for="suggestion in dashboardSuggestions" :key="suggestion">{{ suggestion }}</li>
                         </ul>
                     </article>
+                </section>
+
+                <section class="panel execution-panel">
+                    <div class="execution-header">
+                        <div>
+                            <h2>Plan execution</h2>
+                            <p>Run the agent workflow, inspect step-by-step status, and approve high-risk actions when required.</p>
+                        </div>
+                        <div class="execution-actions">
+                            <button class="button button-secondary" type="button" @click="executePlan(false)" :disabled="orchestrationLoading || !query.trim()">
+                                {{ orchestrationLoading ? 'Running...' : 'Execute Plan' }}
+                            </button>
+                            <button
+                                v-if="execution && execution.approvalRequired"
+                                class="button"
+                                type="button"
+                                @click="executePlan(true)"
+                                :disabled="orchestrationLoading">
+                                Approve Action
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="execution" class="execution-body">
+                        <div class="execution-summary">
+                            <div class="execution-pill" :class="'risk-' + String(execution.riskLevel || 'Low').toLowerCase()">
+                                {{ execution.riskLevel }} risk
+                            </div>
+                            <strong>{{ execution.finalSummary }}</strong>
+                        </div>
+
+                        <div class="step-list">
+                            <article v-for="(step, index) in execution.steps" :key="step.order" class="step-card">
+                                <div class="step-top">
+                                    <div>
+                                        <div class="step-number">Step {{ step.order }}</div>
+                                        <h3>{{ step.agent }}</h3>
+                                    </div>
+                                    <span class="step-status" :class="'status-' + getStepStatus(step, index).tone">
+                                        {{ getStepStatus(step, index).label }}
+                                    </span>
+                                </div>
+                                <p class="step-summary">{{ step.summary }}</p>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div v-else class="empty-state execution-empty">
+                        <div>
+                            <strong>No plan run yet.</strong>
+                            <p>Enter a query above, then execute the agent workflow to see steps and status here.</p>
+                        </div>
+                    </div>
+
+                    <div v-if="orchestrationError" class="error">{{ orchestrationError }}</div>
                 </section>
 
                 <section class="workspace">
