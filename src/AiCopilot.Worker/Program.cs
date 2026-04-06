@@ -1,5 +1,6 @@
 using AiCopilot.Application.DependencyInjection;
 using AiCopilot.Infrastructure.DependencyInjection;
+using AiCopilot.Worker.Options;
 using AiCopilot.Worker.Services;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -13,9 +14,12 @@ builder.Services.AddSerilog((services, configuration) =>
         .Enrich.FromLogContext());
 
 builder.Services
+    .Configure<WorkerJobOptions>(builder.Configuration.GetSection(WorkerJobOptions.SectionName))
     .AddApplication(builder.Configuration)
     .AddInfrastructure(builder.Configuration)
-    .AddHostedService<PromptQueueWorker>();
+    .AddSingleton<AutoOrchestrationService>()
+    .AddHostedService<DailyMonitoringWorker>()
+    .AddHostedService<EventTriggerWorker>();
 
 var host = builder.Build();
 host.Run();
